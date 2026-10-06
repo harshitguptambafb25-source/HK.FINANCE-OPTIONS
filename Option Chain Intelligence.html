@@ -1,0 +1,1827 @@
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#faf9f5;color:#141413}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<title>Option Chain Intelligence</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&family=Newsreader:opsz,wght@6..72,500;6..72,600&display=swap">
+<style>
+/* Layout: sticky dark navy bar, light research-terminal canvas of ruled sections, one dark decision slab, tabular data everywhere. */
+:root {
+  --bg: #f3f4f7; --surface: #ffffff; --surface2: #eceef3; --line: #dcdfe7; --line2: #c9cedb;
+  --ink: #0d1a33; --ink2: #44506b; --muted: #738098;
+  --navy: #0a1630; --navy2: #13244a; --navy-ink: #f2f4f9; --navy-mute: #9aa8c4; --navy-line: #263a66;
+  --gold: #a87a1f; --gold-bright: #d4a73c; --gold-rgb: 184,134,43;
+  --bull: #11795a; --bull-rgb: 17,121,90; --bear: #be3a2b; --bear-rgb: 190,58,43;
+  --warn: #b56a00; --warn-rgb: 199,119,0; --info: #2557a7; --info-rgb: 37,87,167;
+  --ce: #2557a7; --pe: #b0801f;
+  --f-display: 'Newsreader', Georgia, 'Times New Roman', serif;
+  --f-body: 'IBM Plex Sans', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --f-mono: 'IBM Plex Mono', ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #0b1222; --surface: #121b30; --surface2: #18233c; --line: #25324f; --line2: #34456a;
+  --ink: #eaeef7; --ink2: #b4bfd6; --muted: #8493b0; --navy: #060d1d; --navy2: #101d3a; --navy-line: #263a66;
+  --gold: #d4a73c; --bull: #3fbf93; --bull-rgb: 63,191,147; --bear: #ef7565; --bear-rgb: 239,117,101;
+  --warn: #f0a23a; --warn-rgb: 240,162,58; --info: #6a9bea; --info-rgb: 106,155,234; --ce: #6a9bea; --pe: #d4a73c; --gold-rgb: 212,167,60;
+  color-scheme: dark; } }
+:root[data-theme="dark"] {
+  --bg: #0b1222; --surface: #121b30; --surface2: #18233c; --line: #25324f; --line2: #34456a;
+  --ink: #eaeef7; --ink2: #b4bfd6; --muted: #8493b0; --navy: #060d1d; --navy2: #101d3a; --navy-line: #263a66;
+  --gold: #d4a73c; --bull: #3fbf93; --bull-rgb: 63,191,147; --bear: #ef7565; --bear-rgb: 239,117,101;
+  --warn: #f0a23a; --warn-rgb: 240,162,58; --info: #6a9bea; --info-rgb: 106,155,234; --ce: #6a9bea; --pe: #d4a73c; --gold-rgb: 212,167,60;
+  color-scheme: dark; }
+* { box-sizing: border-box; }
+body { background: var(--bg); color: var(--ink); font-family: var(--f-body); font-size: 14px; line-height: 1.5; }
+.num, td.n, th.n { font-variant-numeric: tabular-nums; }
+.mono { font-family: var(--f-mono); }
+button { font: inherit; color: inherit; cursor: pointer; }
+:focus-visible { outline: 2px solid var(--gold-bright); outline-offset: 2px; }
+h1, h2, h3, h4, p { margin: 0; }
+a { color: var(--info); }
+
+/* header */
+.bar { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 20; background: var(--navy); color: var(--navy-ink); border-bottom: 1px solid var(--navy-line); }
+.bar-in { max-width: 1320px; margin: 0 auto; padding: 10px 16px; display: flex; gap: 14px; align-items: center; flex-wrap: wrap; }
+.brand { display: flex; align-items: center; gap: 10px; min-width: 0; margin-right: auto; }
+.mark { width: 30px; height: 30px; flex: none; }
+.brand h1 { font-size: 14px; font-weight: 700; letter-spacing: .14em; text-transform: uppercase; }
+.brand p { font-size: 12px; color: var(--navy-mute); }
+.btn { border: 1px solid var(--line2); background: var(--surface); color: var(--ink); padding: 7px 13px; border-radius: 4px; font-weight: 500; font-size: 13px; }
+.btn:hover { border-color: var(--ink2); }
+.btn.gold { background: var(--gold-bright); border-color: var(--gold-bright); color: #1b1503; font-weight: 600; }
+.btn.gold:hover { background: #e2b64a; }
+.btn.ghost { background: transparent; border-color: var(--navy-line); color: var(--navy-ink); }
+.btn.ghost:hover { border-color: var(--navy-mute); }
+.btn:disabled { opacity: .45; cursor: not-allowed; }
+
+/* page */
+.wrap { max-width: 1320px; margin: 0 auto; padding-inline: 16px; padding-block: 16px 48px; display: flex; flex-direction: column; gap: 18px; }
+.wrap > * { min-width: 0; }
+#out { width: 100%; }
+.sec-h span { overflow-wrap: anywhere; }
+.sec { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+.sec-h { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; border-bottom: 1px solid var(--line2); padding-bottom: 6px; }
+.sec-h h2 { font-size: 11.5px; font-weight: 700; letter-spacing: .16em; text-transform: uppercase; color: var(--ink2); }
+.sec-h span { font-size: 12px; color: var(--muted); }
+.card { background: var(--surface); border: 1px solid var(--line); border-radius: 4px; padding: 14px; min-width: 0; }
+.grid { display: grid; gap: 12px; }
+.g2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.g3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.g4 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+@media (max-width: 980px) { .g4 { grid-template-columns: repeat(2, minmax(0, 1fr)); } .g3 { grid-template-columns: 1fr; } .g2 { grid-template-columns: 1fr; } }
+.lbl { font-size: 10.5px; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); font-weight: 600; }
+.pill { display: inline-block; padding: 2px 8px; border-radius: 3px; font-size: 11px; font-weight: 600; letter-spacing: .04em; border: 1px solid transparent; white-space: nowrap; }
+.pill.bull { color: var(--bull); background: rgba(var(--bull-rgb), .12); border-color: rgba(var(--bull-rgb), .3); }
+.pill.bear { color: var(--bear); background: rgba(var(--bear-rgb), .12); border-color: rgba(var(--bear-rgb), .3); }
+.pill.warn { color: var(--warn); background: rgba(var(--warn-rgb), .13); border-color: rgba(var(--warn-rgb), .35); }
+.pill.info { color: var(--info); background: rgba(var(--info-rgb), .11); border-color: rgba(var(--info-rgb), .3); }
+.pill.gold { color: var(--gold); background: rgba(var(--gold-rgb), .13); border-color: rgba(var(--gold-rgb), .4); }
+.pill.mute { color: var(--ink2); background: var(--surface2); border-color: var(--line); }
+.up { color: var(--bull); } .dn { color: var(--bear); } .wn { color: var(--warn); } .mu { color: var(--muted); }
+
+/* upload */
+.upload { display: grid; grid-template-columns: minmax(0,1fr) auto; gap: 14px; align-items: center; border-style: dashed; border-color: var(--line2); }
+.upload.drag { border-color: var(--gold-bright); background: rgba(var(--gold-rgb), .06); }
+.steps { display: flex; gap: 6px; flex-wrap: wrap; font-size: 11.5px; color: var(--muted); margin-top: 6px; }
+.steps b { color: var(--ink2); font-weight: 600; }
+.steps i { font-style: normal; padding: 1px 7px; border: 1px solid var(--line); border-radius: 3px; }
+.steps i.on { color: var(--ink); border-color: var(--gold-bright); background: rgba(var(--gold-rgb), .1); }
+.fileinfo { margin-top: 8px; font-size: 12.5px; color: var(--ink2); }
+.err { color: var(--bear); font-weight: 500; }
+@media (max-width: 700px) { .upload { grid-template-columns: 1fr; } }
+.pipe { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.pipe li { display: flex; gap: 10px; align-items: center; color: var(--muted); font-family: var(--f-mono); font-size: 13px; }
+.pipe li.run { color: var(--ink); } .pipe li.done { color: var(--ink2); }
+.pipe li::before { content: ''; width: 9px; height: 9px; border: 1.5px solid var(--line2); border-radius: 50%; flex: none; }
+.pipe li.run::before { border-color: var(--gold-bright); background: var(--gold-bright); }
+.pipe li.done::before { border-color: var(--bull); background: var(--bull); }
+
+/* snapshot */
+.snap { display: grid; grid-template-columns: repeat(4, minmax(0,1fr)); gap: 1px; background: var(--line); border: 1px solid var(--line); border-radius: 4px; overflow: hidden; }
+.snap > div { background: var(--surface); padding: 11px 14px; display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.snap .v { font-family: var(--f-mono); font-size: 19px; font-weight: 500; letter-spacing: -.01em; overflow-wrap: anywhere; }
+.snap .s { font-size: 11.5px; color: var(--muted); }
+@media (max-width: 980px) { .snap { grid-template-columns: repeat(2, minmax(0,1fr)); } }
+
+/* decision slab (always dark) */
+.slab { background: var(--navy); color: var(--navy-ink); border: 1px solid var(--navy-line); border-radius: 4px; overflow: hidden; }
+.slab .ban { padding: 9px 18px; font-size: 11.5px; letter-spacing: .16em; font-weight: 700; text-transform: uppercase; display: flex; justify-content: space-between; gap: 10px; flex-wrap: wrap; border-bottom: 1px solid var(--navy-line); background: var(--navy2); }
+.slab .ban.nt { color: #f0b55a; } .slab .ban.go { color: #67d6a8; } .slab .ban.wa { color: #f0b55a; }
+.slab-body { display: grid; grid-template-columns: minmax(0, 340px) minmax(0, 1fr); }
+@media (max-width: 860px) { .slab-body { grid-template-columns: 1fr; } }
+.slab-l { padding: 20px 22px; border-right: 1px solid var(--navy-line); display: flex; flex-direction: column; gap: 12px; }
+@media (max-width: 860px) { .slab-l { border-right: 0; border-bottom: 1px solid var(--navy-line); } }
+.act { font-family: var(--f-display); font-size: 44px; line-height: 1.05; font-weight: 600; letter-spacing: -.01em; color: #fff; text-wrap: balance; }
+.act.call { color: #67d6a8; } .act.put { color: #f08a7a; } .act.no { color: #f4c36a; }
+.score { display: flex; align-items: baseline; gap: 8px; }
+.score b { font-family: var(--f-mono); font-size: 30px; font-weight: 500; color: var(--gold-bright); }
+.score span { font-size: 13px; color: var(--navy-mute); }
+.meter { height: 6px; background: var(--navy-line); border-radius: 3px; overflow: hidden; }
+.meter > i { display: block; height: 100%; background: var(--gold-bright); }
+.slab small { color: var(--navy-mute); font-size: 11.5px; line-height: 1.45; }
+.slab-r { padding: 18px 22px; display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+.kv { display: grid; grid-template-columns: repeat(4, minmax(0,1fr)); gap: 14px 16px; }
+@media (max-width: 1100px) { .kv { grid-template-columns: repeat(2, minmax(0,1fr)); } }
+.kv > div { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.kv .k { font-size: 10.5px; letter-spacing: .12em; text-transform: uppercase; color: var(--navy-mute); font-weight: 600; }
+.kv .v { font-family: var(--f-mono); font-size: 17px; font-weight: 500; overflow-wrap: anywhere; }
+.kv .v small { font-size: 11px; font-weight: 400; }
+.kv .v.g { color: #67d6a8; } .kv .v.r { color: #f08a7a; }
+.why { margin: 0; padding-left: 18px; display: grid; gap: 6px; font-size: 13.5px; color: #dfe5f2; line-height: 1.5; }
+.why li::marker { color: var(--gold-bright); }
+.slab h3 { font-size: 11px; letter-spacing: .14em; text-transform: uppercase; color: var(--gold-bright); font-weight: 700; margin-bottom: 6px; }
+.slab .stay { font-family: var(--f-display); font-size: 19px; color: #fff; }
+.gate { display: flex; gap: 8px; align-items: baseline; font-size: 12.5px; color: #cdd6ea; }
+.gate b { color: #f08a7a; font-weight: 600; } .gate b.ok { color: #67d6a8; }
+
+/* tables */
+.tw { overflow-x: auto; border: 1px solid var(--line); border-radius: 4px; background: var(--surface); }
+table { border-collapse: collapse; width: 100%; font-size: 12.5px; }
+th, td { padding: 6px 9px; text-align: right; white-space: nowrap; border-bottom: 1px solid var(--line); }
+th { font-size: 10.5px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); font-weight: 600; background: var(--surface2); position: sticky; top: 0; }
+th:first-child, td:first-child { text-align: left; }
+td.l, th.l { text-align: left; }
+tbody tr:last-child td { border-bottom: 0; }
+tbody tr.sel td { background: rgba(var(--gold-rgb), .12); }
+tbody tr.clk { cursor: pointer; } tbody tr.clk:hover td { background: var(--surface2); }
+td .sub { display: block; font-size: 10.5px; color: var(--muted); }
+.bar-cell { display: inline-block; height: 6px; border-radius: 1px; vertical-align: middle; margin-left: 6px; }
+
+/* heatmap */
+.heat td, .heat th { padding: 4px 8px; font-family: var(--f-mono); font-size: 12px; }
+.heat td.k { font-weight: 600; background: var(--surface2); text-align: center; position: sticky; left: 0; }
+.heat tr.atm td.k { background: var(--navy); color: #fff; }
+.heat tr.mk td.k { box-shadow: inset 3px 0 0 var(--gold-bright); }
+.tags { display: inline-flex; gap: 3px; margin-left: 6px; vertical-align: middle; }
+.tags i { font-style: normal; font-family: var(--f-body); font-size: 9.5px; font-weight: 700; letter-spacing: .04em; padding: 0 4px; border-radius: 2px; color: #fff; line-height: 15px; }
+.tags .S { background: var(--bull); } .tags .R { background: var(--bear); } .tags .BC { background: var(--info); } .tags .BP { background: var(--gold); } .tags .A { background: var(--ink); } .tags .M { background: var(--muted); }
+
+/* charts */
+.chart { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.chart h4 { font-size: 13px; font-weight: 600; }
+.chart .cap { font-size: 11.5px; color: var(--muted); }
+.chart svg { width: 100%; height: auto; display: block; }
+.legend { display: flex; gap: 14px; flex-wrap: wrap; font-size: 11.5px; color: var(--ink2); }
+.legend i { display: inline-block; width: 10px; height: 10px; margin-right: 5px; border-radius: 2px; vertical-align: -1px; }
+svg text { font-family: var(--f-mono); fill: var(--muted); font-size: 10px; }
+svg .ax { stroke: var(--line2); stroke-width: 1; } svg .gl { stroke: var(--line); stroke-width: 1; }
+
+/* misc */
+.zones { display: grid; gap: 8px; }
+.zone { display: grid; grid-template-columns: auto minmax(0,1fr) auto; gap: 10px; align-items: center; padding: 8px 10px; border: 1px solid var(--line); border-radius: 4px; background: var(--surface); }
+.zone .st { font-family: var(--f-mono); font-weight: 600; font-size: 15px; }
+.zone .d { font-size: 12px; color: var(--ink2); }
+.zone .m { font-size: 11px; color: var(--muted); }
+.sbar { width: 70px; height: 6px; background: var(--surface2); border-radius: 3px; overflow: hidden; } .sbar i { display: block; height: 100%; }
+.fac { display: grid; grid-template-columns: 130px minmax(0,1fr) 78px; gap: 10px; align-items: center; font-size: 12.5px; padding: 3px 0; }
+.fac .t { height: 8px; background: var(--surface2); border-radius: 2px; overflow: hidden; } .fac .t i { display: block; height: 100%; background: var(--info); }
+.fac .t i.na { background: repeating-linear-gradient(45deg, var(--line2), var(--line2) 3px, transparent 3px, transparent 6px); }
+.note { font-size: 12px; color: var(--muted); line-height: 1.5; }
+.callout { border-left: 3px solid var(--warn); background: rgba(var(--warn-rgb), .08); padding: 9px 12px; font-size: 12.5px; color: var(--ink2); border-radius: 0 4px 4px 0; }
+.callout.info { border-left-color: var(--info); background: rgba(var(--info-rgb), .07); }
+.callout.bad { border-left-color: var(--bear); background: rgba(var(--bear-rgb), .08); }
+ul.plain { margin: 0; padding-left: 18px; display: grid; gap: 4px; font-size: 13px; color: var(--ink2); }
+.chk { display: grid; gap: 6px; font-size: 12.5px; }
+.chk div { display: grid; grid-template-columns: 56px minmax(0,1fr); gap: 8px; align-items: start; }
+details { border: 1px solid var(--line); border-radius: 4px; background: var(--surface); }
+details > summary { padding: 9px 14px; cursor: pointer; font-weight: 600; font-size: 13px; }
+details > div { padding: 4px 14px 14px; display: flex; flex-direction: column; gap: 10px; }
+.cfg { display: grid; grid-template-columns: repeat(4, minmax(0,1fr)); gap: 10px 14px; }
+@media (max-width: 900px) { .cfg { grid-template-columns: repeat(2, minmax(0,1fr)); } }
+.cfg label { display: flex; flex-direction: column; gap: 3px; font-size: 11.5px; color: var(--ink2); }
+.cfg input { font: inherit; font-family: var(--f-mono); padding: 6px 8px; border: 1px solid var(--line2); border-radius: 3px; background: var(--surface); color: var(--ink); min-width: 0; width: 100%; }
+.toast { position: fixed; left: 50%; bottom: calc(18px + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%); background: var(--navy); color: #fff; padding: 9px 16px; border-radius: 4px; font-size: 13px; z-index: 40; max-width: calc(100% - 32px); border: 1px solid var(--navy-line); }
+.foot { font-size: 12px; color: var(--muted); line-height: 1.6; border-top: 1px solid var(--line2); padding-top: 12px; }
+@media (prefers-reduced-motion: no-preference) { .meter > i { transition: width .5s ease; } }
+</style>
+
+<header class="bar"><div class="bar-in">
+  <div class="brand">
+    <svg class="mark" viewBox="0 0 32 32" aria-hidden="true"><rect x="1" y="1" width="30" height="30" rx="3" fill="#13244a" stroke="#d4a73c" stroke-width="1.5"/><path d="M6 22 L12 15 L17 19 L26 8" fill="none" stroke="#d4a73c" stroke-width="2"/><circle cx="26" cy="8" r="2.2" fill="#d4a73c"/><path d="M6 26h20" stroke="#9aa8c4" stroke-width="1"/></svg>
+    <div><h1>Option Chain Intelligence</h1><p>Professional Derivatives Decision Engine</p></div>
+  </div>
+  <button class="btn ghost" id="btnSettings" type="button">Model settings</button>
+  <button class="btn ghost" id="btnReport" type="button" disabled>Download Trade Report</button>
+  <button class="btn gold" id="btnUpload" type="button">Upload Option Chain</button>
+  <input id="file" type="file" accept=".csv,.xlsx,.xls,.txt" hidden>
+</div></header>
+
+<main class="wrap" id="app">
+  <section class="card upload" id="drop">
+    <div>
+      <div class="lbl">Option chain file</div>
+      <div id="fileLine" style="font-size:15px;font-weight:500;margin-top:2px">Drop a CSV / XLSX / XLS file here, or use Upload Option Chain</div>
+      <div class="steps"><i id="s1" class="on"><b>1</b> Upload</i><i id="s2"><b>2</b> Validate</i><i id="s3"><b>3</b> Analyze</i><i id="s4"><b>4</b> Dashboard</i></div>
+      <div class="fileinfo" id="fileInfo"></div>
+    </div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
+      <button class="btn" id="btnSample" type="button">Load test file</button>
+      <button class="btn gold" id="btnAnalyze" type="button" disabled>Analyze Option Chain</button>
+    </div>
+  </section>
+  <section class="card" id="settings" hidden></section>
+  <section class="card" id="pipe" hidden><div class="lbl" style="margin-bottom:10px">Analysis in progress</div><ul class="pipe" id="pipeList"></ul></section>
+  <div id="out" class="wrap" style="padding:0;gap:18px"></div>
+</main>
+<div class="toast" id="toast" hidden></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script>(function(root){
+'use strict';
+/* =====================================================================
+   OPTION CHAIN INTELLIGENCE ENGINE
+   Modules (concatenated into one IIFE at build time):
+     10 core / ingestion / column mapping / validation
+     20 option maths (Black-Scholes, Greeks, parity) + analytics (OI, PCR, IV, max pain, S/R)
+     30 signals (regime, breakout, scoring, candidates)
+     40 risk plan + recommendation
+     50 backtesting scaffold
+   Nothing in here is specific to one file: every level, price and score is computed
+   from whatever chain is passed in.
+   ===================================================================== */
+const OCI = { version: '1.0.0' };
+
+/* ---------- configuration (all modular / overridable) ---------- */
+OCI.DEFAULTS = {
+  rate: 0.065,            // risk-free rate (annual) used for discounting / Greeks
+  divYield: 0.013,        // dividend yield (annual) used for carry of the index
+  nearSteps: 8,           // +/- strikes treated as "near ATM" for PCR / flow / ranks
+  wallSteps: 14,          // +/- strikes searched for support / resistance walls
+  candidateOffsets: [-2, -1, 0, 1, 2], // strikes from ATM evaluated per side
+  weights: { structure: 15, oi: 15, volume: 10, pcr: 10, iv: 10, greeks: 10, liquidity: 10, momentum: 10, rr: 10 },
+  dirWeights: { flow: 0.30, structure: 0.25, momentum: 0.25, pcr: 0.20 },
+  wallWeights: { oi: 0.28, fresh: 0.18, prem: 0.14, vol: 0.12, prom: 0.10, prox: 0.18 },
+  thresholds: { strong: 85, trade: 75, watch: 65, weak: 50 },
+  minRR: 1.5,             // hard gate: reward/risk to the main target
+  goodRR: 2.0,            // preferred reward/risk
+  maxSpreadPct: 12,       // hard liquidity gate: bid-ask spread as % of mid
+  deltaBand: [0.45, 0.70],// preferred |delta| for a directional long option
+  minDelta: 0.20,         // soft gate (hard below 0.12)
+  holdDays: 0.25,         // assumed time (calendar days) for the move to play out when repricing
+  slBufferSteps: 0.5,     // stop buffer beyond a wall, in strike steps
+  minStopEM: 0.20,        // stops tighter than this fraction of the expected move sit inside noise
+  minTargetEM: 0.15,      // targets nearer than this fraction of the expected move are ignored
+  maxTargetEM: 1.30,      // targets farther than this multiple of the expected move are unsupported
+  strongWall: 60,         // wall strength above which targets beyond it need breakout confirmation
+  momentumGain: 1.5,
+  minOiChangePct: 0.01,   // noise filter for OI change classification
+  minBias: 0.15,          // minimum direction-aligned bias for a full BUY
+  conflictCap: 0.40,      // share of opposing signals above which BUY is capped to WATCH
+  minBreakEM: 0.15,       // spot must clear a wall by this fraction of the expected move to count as a breakout
+  minDQ: 50,              // minimum data quality (%) to allow any trade
+  ivCrushPts: 5,          // vol points used in the IV-crush stress
+  unstableEMpct: 1.5,     // expected move (% of spot, 1 sigma) above which the market is flagged unstable
+  spotOverride: null, underlying: null, expiry: null, lotSize: null,
+  riskCapital: null, riskPct: 1, lots: 1,
+  asOf: null              // Date; defaults to now
+};
+
+/* ---------- utilities ---------- */
+const U = {
+  clamp: (x, a = 0, b = 1) => Math.min(b, Math.max(a, x)),
+  isNum: x => typeof x === 'number' && isFinite(x),
+  nz: x => (typeof x === 'number' && isFinite(x)) ? x : 0,
+  sum: a => a.reduce((s, x) => s + x, 0),
+  mean: a => a.length ? a.reduce((s, x) => s + x, 0) / a.length : null,
+  median(a) { if (!a.length) return null; const s = [...a].sort((x, y) => x - y), m = s.length >> 1; return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2; },
+  /* share of finite values in arr that are <= v  (cross-sectional rank, unit-free) */
+  pctRank(arr, v) { const f = arr.filter(U.isNum); if (!f.length || !U.isNum(v)) return null; let c = 0; for (const x of f) if (x <= v) c++; return c / f.length; },
+  max: a => a.reduce((m, x) => (U.isNum(x) && x > m) ? x : m, -Infinity),
+  round: (x, d = 2) => U.isNum(x) ? Math.round(x * Math.pow(10, d)) / Math.pow(10, d) : null,
+  merge(base, over) { const o = JSON.parse(JSON.stringify(base)); for (const k in (over || {})) { if (over[k] && typeof over[k] === 'object' && !Array.isArray(over[k]) && !(over[k] instanceof Date)) o[k] = Object.assign({}, o[k] || {}, over[k]); else if (over[k] !== undefined) o[k] = over[k]; } return o; }
+};
+OCI.U = U;
+
+/* =====================  DATA INGESTION  ===================== */
+const MONTHS = { jan: 0, feb: 1, mar: 2, apr: 3, may: 4, jun: 5, jul: 6, aug: 7, sep: 8, oct: 9, nov: 10, dec: 11 };
+
+function parseCSV(text) {
+  text = text.replace(/^﻿/, '');
+  const head = text.split(/\r?\n/).slice(0, 6).join('\n');
+  const cnt = { ',': (head.match(/,/g) || []).length, ';': (head.match(/;/g) || []).length, '\t': (head.match(/\t/g) || []).length };
+  let delim = ','; if (cnt[';'] > cnt[','] && cnt[';'] > cnt['\t']) delim = ';'; else if (cnt['\t'] > cnt[',']) delim = '\t';
+  const rows = []; let row = [], cell = '', inQ = false;
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i];
+    if (inQ) { if (ch === '"') { if (text[i + 1] === '"') { cell += '"'; i++; } else inQ = false; } else cell += ch; }
+    else if (ch === '"') inQ = true;
+    else if (ch === delim) { row.push(cell); cell = ''; }
+    else if (ch === '\n' || ch === '\r') { if (ch === '\r' && text[i + 1] === '\n') i++; row.push(cell); cell = ''; rows.push(row); row = []; }
+    else cell += ch;
+  }
+  if (cell !== '' || row.length) { row.push(cell); rows.push(row); }
+  return rows.map(r => r.map(c => String(c).trim()));
+}
+
+/* number parser: Indian/Western separators, "-" and blanks are missing, (123) negative */
+const NIL_RE = /^(-|--|—|–|na|n\/a|nan|null|none|nil|#n\/a)?$/i;
+function isNil(v) { return v === null || v === undefined || (typeof v === 'string' && NIL_RE.test(v.trim())); }
+function toNum(v) {
+  if (v === null || v === undefined) return null;
+  if (typeof v === 'number') return isFinite(v) ? v : null;
+  let s = String(v).trim();
+  if (NIL_RE.test(s)) return null;
+  s = s.replace(/[,\s₹$]/g, '').replace(/%$/, '');
+  if (/^\(.*\)$/.test(s)) s = '-' + s.slice(1, -1);
+  const n = Number(s);
+  return isFinite(n) ? n : null;
+}
+
+function parseExpiryString(s) {
+  if (!s) return null;
+  let m = String(s).match(/(\d{1,2})[-_ \/.]([A-Za-z]{3,9})[-_ \/.,]*(\d{2,4})/);
+  if (m) { const mo = MONTHS[m[2].slice(0, 3).toLowerCase()]; if (mo !== undefined) { let y = +m[3]; if (y < 100) y += 2000; return { y, mo, d: +m[1] }; } }
+  m = String(s).match(/(\d{4})-(\d{2})-(\d{2})/); if (m) return { y: +m[1], mo: +m[2] - 1, d: +m[3] };
+  m = String(s).match(/(\d{1,2})\/(\d{1,2})\/(\d{4})/); if (m) return { y: +m[3], mo: +m[2] - 1, d: +m[1] };
+  return null;
+}
+/* Indian index options expire at 15:30 IST = 10:00 UTC */
+const expiryToDate = p => new Date(Date.UTC(p.y, p.mo, p.d, 10, 0, 0));
+
+function guessUnderlying(name) {
+  if (!name) return null;
+  const up = String(name).toUpperCase();
+  const m = up.match(/(?:^|[^A-Z0-9])(BANKNIFTY|FINNIFTY|MIDCPNIFTY|NIFTYNXT50|NIFTYBANK|NIFTY|SENSEX|BANKEX)(?:[^A-Z0-9]|$)/);
+  if (m) return m[1] === 'NIFTYBANK' ? 'BANKNIFTY' : m[1];
+  const dm = up.match(/([A-Z][A-Z0-9&]{1,})[-_ ]+\d{1,2}[-_ ][A-Z]{3}[-_ ]\d{2,4}/);
+  if (dm && !/^(OPTION|CHAIN|ED|OC|DATA)$/.test(dm[1])) return dm[1];
+  return null;
+}
+
+/* ---------- column mapping (name-variation tolerant, side from prefix or position) ---------- */
+function normHeader(c) { return String(c == null ? '' : c).toLowerCase().replace(/[^a-z0-9%]+/g, ' ').trim(); }
+function matchField(rem) {
+  if (!rem) return null;
+  if (/^strike( price| px)?$/.test(rem)) return 'strike';
+  if (/\bbid\b.*\b(qty|quantity|size|q)\b|^bidq(ty)?$/.test(rem)) return 'bidQty';
+  if (/\b(ask|offer)\b.*\b(qty|quantity|size|q)\b|^askq(ty)?$/.test(rem)) return 'askQty';
+  if (/^(bid|bid price|best bid)$/.test(rem)) return 'bid';
+  if (/^(ask|ask price|offer|best ask|best offer)$/.test(rem)) return 'ask';
+  if (/(chng|chg|change)\b.*\boi\b|\boi\b.*(chng|chg|change)|^coi$|(chng|chg|change).*open interest|open interest.*(chng|chg|change)/.test(rem)) return 'chgOi';
+  if (/^(oi|open interest|openinterest)$/.test(rem)) return 'oi';
+  if (/^(volume|vol|volumes|traded volume|trade volume|contracts|no of contracts|number of contracts)$/.test(rem)) return 'volume';
+  if (/^(iv|implied volatility|implied vol|iv %)$/.test(rem)) return 'iv';
+  if (/^(ltp|last|last price|last traded price|lastprice|ltp price|close)$/.test(rem)) return 'ltp';
+  if (/^(chng|chg|change|net change|net chng|price change|ltp chng|ltp chg|ltp change|change in ltp|chng in ltp|price chng)$/.test(rem)) return 'chg';
+  if (/^(delta|gamma|theta|vega|rho)$/.test(rem)) return rem;
+  return null;
+}
+const FIELD_LABEL = { oi: 'Open interest', chgOi: 'Change in OI', volume: 'Volume', iv: 'IV', ltp: 'LTP', chg: 'Price change', bidQty: 'Bid quantity', bid: 'Bid', ask: 'Ask', askQty: 'Ask quantity', delta: 'Delta', gamma: 'Gamma', theta: 'Theta', vega: 'Vega', rho: 'Rho' };
+OCI.FIELD_LABEL = FIELD_LABEL;
+
+function detectLayout(rows) {
+  let hi = -1, strikeCol = -1;
+  for (let i = 0; i < Math.min(rows.length, 40); i++) {
+    const c = rows[i].findIndex(x => /^strike( price| px)?$/.test(normHeader(x)));
+    if (c >= 0) { hi = i; strikeCol = c; break; }
+  }
+  if (hi < 0) throw new Error('Could not find a STRIKE column in the first 40 rows. Check that the file is an option chain with a "Strike" header.');
+  const header = rows[hi];
+  const map = { CE: {}, PE: {} }, dup = [], ignored = [];
+  header.forEach((cell, ci) => {
+    if (ci === strikeCol) return;
+    const n = normHeader(cell);
+    if (!n || /^(no text|unnamed.*|column.*)$/.test(n)) return;
+    let side = null;
+    if (/\b(ce|calls?)\b/.test(n)) side = 'CE'; else if (/\b(pe|puts?)\b/.test(n)) side = 'PE';
+    const rem = n.replace(/\b(ce|calls?|pe|puts?)\b/g, ' ').replace(/\s+/g, ' ').trim();
+    const f = matchField(rem);
+    if (!side) side = ci < strikeCol ? 'CE' : 'PE';
+    if (!f || f === 'strike') { ignored.push(String(cell)); return; }
+    if (map[side][f] !== undefined) { dup.push(`${side} ${f}`); return; }
+    map[side][f] = ci;
+  });
+  return { headerRow: hi, strikeCol, map, duplicates: dup, ignored };
+}
+
+function scanMeta(rows, headerRow) {
+  const meta = {};
+  for (let i = 0; i < headerRow; i++) {
+    const line = rows[i].join(' ');
+    let m = line.match(/(underlying(?: value)?|spot(?: price)?|index(?: value)?|ltp of underlying)\D{0,15}?([\d,]+\.?\d*)/i);
+    if (m && toNum(m[2]) > 100) meta.spot = toNum(m[2]);
+    const ex = parseExpiryString(line); if (ex && /expir/i.test(line)) meta.expiry = ex;
+    const un = guessUnderlying(line); if (un) meta.underlying = un;
+  }
+  return meta;
+}
+
+/* ---------- build strike records ---------- */
+const LEG_FIELDS = ['oi', 'chgOi', 'volume', 'iv', 'ltp', 'chg', 'bidQty', 'bid', 'ask', 'askQty', 'delta', 'gamma', 'theta', 'vega', 'rho'];
+const NIL_OK = ['oi', 'chgOi', 'volume'];   // "-" in these columns means nil (NSE convention); treated as 0 in totals
+
+function buildStrikes(rows, layout) {
+  const issues = [], out = [];
+  let empty = 0, badStrike = 0;
+  for (let i = layout.headerRow + 1; i < rows.length; i++) {
+    const r = rows[i];
+    if (!r || r.every(c => c === '' || c == null)) { empty++; continue; }
+    const K = toNum(r[layout.strikeCol]);
+    if (K === null || K <= 0) { badStrike++; continue; }
+    const rec = { strike: K, srcRow: i + 1, CE: {}, PE: {} };
+    for (const side of ['CE', 'PE']) {
+      const leg = rec[side]; leg.nil = {};
+      for (const f of LEG_FIELDS) {
+        const ci = layout.map[side][f];
+        if (ci === undefined) { leg[f] = null; continue; }
+        const raw = r[ci];
+        leg[f] = toNum(raw);
+        if (leg[f] === null && NIL_OK.includes(f)) leg.nil[f] = true;
+      }
+    }
+    out.push(rec);
+  }
+  if (empty) issues.push({ level: 'info', code: 'empty_rows', count: empty, msg: `${empty} empty row(s) skipped` });
+  if (badStrike) issues.push({ level: 'warn', code: 'bad_strike', count: badStrike, msg: `${badStrike} row(s) skipped because the strike was not a valid number` });
+  return { strikes: out, issues };
+}
+
+/* ---------- validation & cleaning ---------- */
+function validateAndClean(strikes, layout, issues) {
+  // duplicates: merge, keeping the row with more populated fields
+  const byK = new Map(); let dups = 0;
+  const filled = s => ['CE', 'PE'].reduce((n, side) => n + LEG_FIELDS.filter(f => U.isNum(s[side][f])).length, 0);
+  for (const s of strikes) {
+    if (byK.has(s.strike)) { dups++; if (filled(s) > filled(byK.get(s.strike))) byK.set(s.strike, s); } else byK.set(s.strike, s);
+  }
+  if (dups) issues.push({ level: 'warn', code: 'duplicates', count: dups, msg: `${dups} duplicate strike row(s) merged (the more complete row was kept)` });
+  let arr = [...byK.values()];
+  const wasSorted = arr.every((s, i) => i === 0 || s.strike >= arr[i - 1].strike);
+  arr.sort((a, b) => a.strike - b.strike);
+  if (!wasSorted) issues.push({ level: 'info', code: 'unsorted', count: 1, msg: 'Strikes were not in ascending order and have been sorted' });
+
+  let neg = 0, badPrice = 0, badIv = 0, crossed = 0, stale = 0, impossibleChg = 0;
+  for (const s of arr) for (const side of ['CE', 'PE']) {
+    const L = s[side];
+    for (const f of ['oi', 'volume']) if (U.isNum(L[f]) && L[f] < 0) { L[f] = null; neg++; }
+    for (const f of ['ltp', 'bid', 'ask']) if (U.isNum(L[f]) && L[f] <= 0) { L[f] = null; badPrice++; }
+    if (U.isNum(L.iv) && (L.iv <= 0 || L.iv > 400)) { L.iv = null; badIv++; }
+    if (U.isNum(L.bid) && U.isNum(L.ask) && L.bid > L.ask) { L.crossed = true; crossed++; }
+    if (U.isNum(L.oi) && U.isNum(L.chgOi) && L.chgOi > L.oi) { impossibleChg++; }
+    // quote metrics
+    const qv = U.isNum(L.bid) && U.isNum(L.ask) && L.ask >= L.bid && !L.crossed;
+    L.quoteValid = qv;
+    L.mid = qv ? (L.bid + L.ask) / 2 : null;
+    L.spread = qv ? L.ask - L.bid : null;
+    L.spreadPct = qv && L.mid > 0 ? 100 * L.spread / L.mid : null;
+    if (qv && U.isNum(L.ltp)) {
+      const tol = Math.max(0.05, 0.02 * L.mid);
+      L.ltpStale = L.ltp < L.bid - tol || L.ltp > L.ask + tol;
+      if (L.ltpStale) stale++;
+    } else L.ltpStale = false;
+  }
+  if (neg) issues.push({ level: 'warn', code: 'negative', count: neg, msg: `${neg} negative OI/volume value(s) ignored` });
+  if (badPrice) issues.push({ level: 'warn', code: 'bad_price', count: badPrice, msg: `${badPrice} zero/negative price(s) ignored` });
+  if (badIv) issues.push({ level: 'warn', code: 'bad_iv', count: badIv, msg: `${badIv} implausible IV value(s) ignored` });
+  if (crossed) issues.push({ level: 'warn', code: 'crossed', count: crossed, msg: `${crossed} crossed quote(s) (bid > ask) ignored` });
+  if (stale) issues.push({ level: 'info', code: 'stale_ltp', count: stale, msg: `${stale} LTP value(s) lie outside the current bid-ask; the quote mid is used instead` });
+  if (impossibleChg) issues.push({ level: 'warn', code: 'chg_oi_gt_oi', count: impossibleChg, msg: `${impossibleChg} row(s) where the OI increase exceeds the OI itself (previous OI would be negative)` });
+
+  // strike step
+  const gaps = []; for (let i = 1; i < arr.length; i++) gaps.push(+(arr[i].strike - arr[i - 1].strike).toFixed(4));
+  const freq = {}; gaps.forEach(g => freq[g] = (freq[g] || 0) + 1);
+  const step = +Object.keys(freq).sort((a, b) => freq[b] - freq[a])[0] || 50;
+  const irregular = gaps.filter(g => Math.abs(g - step) > 1e-6).length;
+  if (irregular) issues.push({ level: 'info', code: 'irregular_step', count: irregular, msg: `${irregular} strike gap(s) differ from the usual ${step} step` });
+
+  // CE / PE mapping validation: call prices fall with strike, put prices rise
+  const pairs = arr.filter(s => s.CE.mid != null && s.PE.mid != null);
+  const corr = (xs, ys) => { const n = xs.length; if (n < 4) return null; const mx = U.mean(xs), my = U.mean(ys); let sxy = 0, sxx = 0, syy = 0; for (let i = 0; i < n; i++) { sxy += (xs[i] - mx) * (ys[i] - my); sxx += (xs[i] - mx) ** 2; syy += (ys[i] - my) ** 2; } return sxx && syy ? sxy / Math.sqrt(sxx * syy) : null; };
+  const ks = pairs.map(s => s.strike);
+  let cCE = corr(ks, pairs.map(s => s.CE.mid)), cPE = corr(ks, pairs.map(s => s.PE.mid));
+  let swapped = false;
+  if (cCE !== null && cPE !== null && cCE > 0.5 && cPE < -0.5) {
+    for (const s of arr) { const t = s.CE; s.CE = s.PE; s.PE = t; }
+    swapped = true; [cCE, cPE] = [cPE, cCE];
+    issues.push({ level: 'warn', code: 'swapped', count: 1, msg: 'CALL and PUT columns appeared swapped (call prices rising with strike); they were swapped back automatically' });
+  }
+  // put-call parity linearity: (C-P) should fall ~1:1 with strike
+  let parity = null;
+  if (pairs.length >= 5) {
+    const xs = pairs.map(s => s.strike), ys = pairs.map(s => s.CE.mid - s.PE.mid);
+    const mx = U.mean(xs), my = U.mean(ys); let sxy = 0, sxx = 0, syy = 0;
+    for (let i = 0; i < xs.length; i++) { sxy += (xs[i] - mx) * (ys[i] - my); sxx += (xs[i] - mx) ** 2; syy += (ys[i] - my) ** 2; }
+    const slope = sxy / sxx; parity = { slope, r2: syy ? (sxy * sxy) / (sxx * syy) : null, n: pairs.length };
+    if (Math.abs(slope + 1) > 0.15) issues.push({ level: 'warn', code: 'parity', count: 1, msg: `Put-call parity slope is ${slope.toFixed(2)} (expected about -1): CE/PE prices may be mis-mapped or stale` });
+  }
+  let monoViol = 0, monoN = 0;
+  for (let i = 1; i < arr.length; i++) {
+    const a = arr[i - 1], b = arr[i];
+    if (a.CE.mid != null && b.CE.mid != null) { monoN++; if (b.CE.mid > a.CE.mid + Math.max(0.05, 0.02 * a.CE.mid)) monoViol++; }
+    if (a.PE.mid != null && b.PE.mid != null) { monoN++; if (b.PE.mid < a.PE.mid - Math.max(0.05, 0.02 * a.PE.mid)) monoViol++; }
+  }
+  if (monoViol) issues.push({ level: 'warn', code: 'monotonic', count: monoViol, msg: `${monoViol} price(s) break the expected strike monotonicity (calls fall, puts rise)` });
+
+  return { strikes: arr, step, parity, swapped, monoViol, monoN, stats: { dups, neg, badPrice, badIv, crossed, stale, impossibleChg } };
+}
+
+/* preliminary ATM (min |C-P|) used only to define the coverage window before spot is known */
+function prelimATM(strikes) {
+  let best = null;
+  for (const s of strikes) if (s.CE.mid != null && s.PE.mid != null) { const d = Math.abs(s.CE.mid - s.PE.mid); if (best === null || d < best.d) best = { d, K: s.strike }; }
+  return best ? best.K : (strikes.length ? strikes[Math.floor(strikes.length / 2)].strike : null);
+}
+
+/* ---------- data-quality score ---------- */
+const DQ_WEIGHTS = { oi: .18, chgOi: .14, volume: .12, iv: .14, ltp: .12, bid: .10, ask: .10, bidQty: .05, askQty: .05 };
+function dataQuality(strikes, layout, vres, cfg, atmK, step, issues) {
+  const win = strikes.filter(s => Math.abs(s.strike - atmK) <= cfg.nearSteps * step + 1e-9);
+  const legsN = win.length * 2;
+  const cov = {}, available = [], missing = [], uncalc = [];
+  for (const f of Object.keys(DQ_WEIGHTS)) {
+    let have = 0;
+    for (const s of win) for (const side of ['CE', 'PE']) {
+      const L = s[side], colExists = layout.map[side][f] !== undefined;
+      if (!colExists) continue;
+      if (U.isNum(L[f]) || (NIL_OK.includes(f) && L.nil[f])) have++;
+    }
+    cov[f] = legsN ? have / legsN : 0;
+    (cov[f] >= 0.5 ? available : missing).push(f);
+  }
+  const completeness = U.sum(Object.keys(DQ_WEIGHTS).map(f => DQ_WEIGHTS[f] * cov[f]));
+  const st = vres.stats;
+  const windowLegs = Math.max(1, legsN);
+  const winStale = win.reduce((n, s) => n + ['CE', 'PE'].filter(sd => s[sd].ltpStale).length, 0);
+  const winCrossed = win.reduce((n, s) => n + ['CE', 'PE'].filter(sd => s[sd].crossed).length, 0);
+  const validity = U.clamp(1 - (winCrossed + 0.4 * winStale + 0.5 * vres.monoViol) / windowLegs);
+  let structure = 1;
+  if (st.dups) structure -= Math.min(0.2, st.dups * 0.02);
+  if (!vres.parity) structure -= 0.15; else if (Math.abs(vres.parity.slope + 1) > 0.15) structure -= 0.3;
+  if (strikes.length < 9) structure -= 0.3;
+  structure = U.clamp(structure);
+  const score = Math.round(100 * (0.60 * completeness + 0.28 * validity + 0.12 * structure));
+  const label = score >= 90 ? 'Excellent' : score >= 80 ? 'Good' : score >= 65 ? 'Fair' : score >= 50 ? 'Poor' : 'Unusable';
+  // metrics that cannot be calculated from this file
+  const has = (f) => cov[f] >= 0.5;
+  if (!has('iv')) uncalc.push('IV structure, Greeks (IV can be implied from price only where the quote is usable)');
+  if (!has('chgOi')) uncalc.push('OI buildup / unwinding, fresh-writing analysis');
+  if (!has('volume')) uncalc.push('Volume confirmation, Volume PCR');
+  if (!has('bid') || !has('ask')) uncalc.push('Bid-ask spread and liquidity grading');
+  uncalc.push('IV expansion / contraction and abnormal-volume detection (need historical snapshots)');
+  uncalc.push('ATR (needs underlying price history)');
+  return { score, label, completeness, validity, structure, coverage: cov, available, missing, uncalculable: uncalc, windowStrikes: win.length, issues };
+}
+
+OCI.ingest = { parseCSV, toNum, isNil, parseExpiryString, expiryToDate, guessUnderlying, detectLayout, scanMeta, buildStrikes, validateAndClean, prelimATM, dataQuality };
+/* =====================  OPTION MATHS  =====================
+   Black-Scholes-Merton with continuous dividend yield q:
+     d1 = [ln(S/K) + (r - q + sigma^2/2) T] / (sigma sqrt T),  d2 = d1 - sigma sqrt T
+     Call = S e^{-qT} N(d1) - K e^{-rT} N(d2)       Put = K e^{-rT} N(-d2) - S e^{-qT} N(-d1)
+     Delta(call) = e^{-qT} N(d1)   Delta(put) = -e^{-qT} N(-d1)
+     Gamma = e^{-qT} phi(d1) / (S sigma sqrt T)
+     Vega  = S e^{-qT} phi(d1) sqrt T          (reported per 1 vol point)
+     Theta = see code (reported per calendar day)
+   ======================================================== */
+const SQ2PI = Math.sqrt(2 * Math.PI);
+const npdf = x => Math.exp(-0.5 * x * x) / SQ2PI;
+function ncdf(x) {            // Abramowitz & Stegun 26.2.17 (abs error < 7.5e-8)
+  const t = 1 / (1 + 0.2316419 * Math.abs(x)), d = npdf(x);
+  const p = d * t * (0.319381530 + t * (-0.356563782 + t * (1.781477937 + t * (-1.821255978 + t * 1.330274429))));
+  return x >= 0 ? 1 - p : p;
+}
+function bs(type, S, K, T, r, q, sig) {
+  if (!(T > 0) || !(sig > 0)) {
+    const intr = type === 'CE' ? Math.max(0, S - K) : Math.max(0, K - S);
+    return { price: intr, delta: type === 'CE' ? (S > K ? 1 : 0) : (S < K ? -1 : 0), gamma: 0, theta: 0, vega: 0, rho: 0 };
+  }
+  const sq = Math.sqrt(T), d1 = (Math.log(S / K) + (r - q + 0.5 * sig * sig) * T) / (sig * sq), d2 = d1 - sig * sq;
+  const eq = Math.exp(-q * T), er = Math.exp(-r * T), pd = npdf(d1);
+  let price, delta, theta, rho;
+  if (type === 'CE') {
+    price = S * eq * ncdf(d1) - K * er * ncdf(d2); delta = eq * ncdf(d1);
+    theta = (-S * eq * pd * sig / (2 * sq) - r * K * er * ncdf(d2) + q * S * eq * ncdf(d1)) / 365; rho = K * T * er * ncdf(d2) / 100;
+  } else {
+    price = K * er * ncdf(-d2) - S * eq * ncdf(-d1); delta = -eq * ncdf(-d1);
+    theta = (-S * eq * pd * sig / (2 * sq) + r * K * er * ncdf(-d2) - q * S * eq * ncdf(-d1)) / 365; rho = -K * T * er * ncdf(-d2) / 100;
+  }
+  return { price, delta, gamma: eq * pd / (S * sig * sq), theta, vega: S * eq * pd * sq / 100, rho };
+}
+function impliedVol(type, S, K, T, r, q, price) {
+  if (!(T > 0) || !(price > 0) || !(S > 0)) return null;
+  let lo = 0.005, hi = 5;
+  if (price < bs(type, S, K, T, r, q, lo).price - 1e-9 || price > bs(type, S, K, T, r, q, hi).price) return null;
+  for (let i = 0; i < 70; i++) { const m = (lo + hi) / 2; if (bs(type, S, K, T, r, q, m).price < price) lo = m; else hi = m; }
+  return (lo + hi) / 2;
+}
+/* underlying level at which a long option is worth `price` (inverse of the pricing model, bisection) */
+function underlyingForPrice(type, K, T, r, q, sig, price, S0) {
+  let lo = S0 * 0.5, hi = S0 * 1.5;
+  const f = S => bs(type, S, K, T, r, q, sig).price;
+  const inc = type === 'CE';
+  if (price < Math.min(f(lo), f(hi)) || price > Math.max(f(lo), f(hi))) return null;
+  for (let i = 0; i < 60; i++) { const m = (lo + hi) / 2; if ((f(m) < price) === inc) lo = m; else hi = m; }
+  return (lo + hi) / 2;
+}
+OCI.maths = { bs, ncdf, impliedVol, underlyingForPrice };
+
+/* =====================  TIME TO EXPIRY  ===================== */
+function timeContext(expiryParts, asOf) {
+  if (!expiryParts) return { known: false };
+  const exp = OCI.ingest.expiryToDate(expiryParts), days = (exp - asOf) / 864e5;
+  const ist = d => new Date(d.getTime() + 5.5 * 3600e3), a = ist(asOf), e = ist(exp);
+  const dte = Math.round((Date.UTC(e.getUTCFullYear(), e.getUTCMonth(), e.getUTCDate()) - Date.UTC(a.getUTCFullYear(), a.getUTCMonth(), a.getUTCDate())) / 864e5);
+  const Tdays = Math.max(days, 1 / 24);
+  return { known: true, expiry: exp, expiryParts, days, hours: days * 24, dte, expired: days <= 0, Tdays, T: Tdays / 365 };
+}
+
+/* =====================  SYNTHETIC SPOT  =====================
+   Put-call parity:  C - P = e^{-rT} (F - K)   =>   F = K + (C - P) e^{rT}
+   Spot is the forward discounted at the net carry: S = F e^{-(r-q)T}.
+   Uses the strikes where |C-P| is smallest (closest to the forward) with tight two-sided quotes.      */
+function estimateSpot(strikes, tctx, cfg) {
+  const r = cfg.rate, q = cfg.divYield, T = tctx.known ? tctx.T : 0;
+  const cand = [];
+  for (const s of strikes) {
+    const C = s.CE, P = s.PE;
+    if (C.mid == null || P.mid == null || C.spreadPct > 20 || P.spreadPct > 20) continue;
+    cand.push({ K: s.strike, F: s.strike + (C.mid - P.mid) * Math.exp(r * T), absd: Math.abs(C.mid - P.mid), w: 1 / (C.spread + P.spread + 0.05) });
+  }
+  if (!cand.length) return null;
+  cand.sort((a, b) => a.absd - b.absd);
+  const use = cand.slice(0, Math.min(7, cand.length)), sw = U.sum(use.map(x => x.w));
+  const F = U.sum(use.map(x => x.F * x.w)) / sw;
+  const sd = Math.sqrt(U.sum(use.map(x => x.w * (x.F - F) ** 2)) / sw);
+  return { forward: F, spot: F * Math.exp(-(r - q) * T), sd, n: use.length, strikes: use.map(x => x.K).sort((a, b) => a - b) };
+}
+
+/* =====================  LEG ENRICHMENT  ===================== */
+const FLOW_LABEL = { LB: 'Long buildup', SB: 'Short buildup', SC: 'Short covering', LU: 'Long unwinding', NEUTRAL: 'No meaningful change', NA: 'Not classifiable' };
+/* Price up + OI up = LB;  price down + OI up = SB;  price up + OI down = SC;  price down + OI down = LU */
+function classifyFlow(L, side, cfg) {
+  const oi = L.oi, d = L.chgOi, ch = L.chg;
+  if (!U.isNum(oi) || oi <= 0 || !U.isNum(d) || !U.isNum(ch)) return null;
+  if (!(L.volume > 0) || L.ltpStale) return { code: 'NA', label: FLOW_LABEL.NA, bias: 0 };
+  const prev = Math.max(oi - d, 1);
+  if (Math.abs(d) < cfg.minOiChangePct * prev || ch === 0) return { code: 'NEUTRAL', label: FLOW_LABEL.NEUTRAL, bias: 0 };
+  const up = ch > 0, oiUp = d > 0;
+  const code = up && oiUp ? 'LB' : (!up && oiUp) ? 'SB' : up ? 'SC' : 'LU';
+  // market-direction meaning: calls (LB, SC bullish) / puts (SB, LU bullish)
+  const bias = side === 'CE' ? ({ LB: 1, SC: 1, SB: -1, LU: -1 })[code] : ({ SB: 1, LU: 1, LB: -1, SC: -1 })[code];
+  return { code, label: FLOW_LABEL[code], bias };
+}
+
+function enrichLegs(strikes, ctx) {
+  const { S, tctx, cfg, spotActual } = ctx, r = cfg.rate, q = cfg.divYield;
+  for (const s of strikes) for (const side of ['CE', 'PE']) {
+    const L = s[side], K = s.strike;
+    L.intrinsic = side === 'CE' ? Math.max(0, S - K) : Math.max(0, K - S);
+    L.moneyness = side === 'CE' ? (K < S ? 'ITM' : 'OTM') : (K > S ? 'ITM' : 'OTM');
+    // effective price: tight two-sided quote -> mid; else a fresh traded LTP; else none
+    if (L.quoteValid && L.spreadPct <= 30) { L.px = L.mid; L.pxSource = 'mid'; }
+    else if (U.isNum(L.ltp) && !L.ltpStale && L.volume > 0) { L.px = L.ltp; L.pxSource = 'ltp'; }
+    else { L.px = null; L.pxSource = null; }
+    L.tradable = L.px != null && L.quoteValid && L.ask > 0;
+    L.volOi = (L.volume > 0 && L.oi > 0) ? L.volume / L.oi : null;
+    L.depth = (U.isNum(L.bidQty) || U.isNum(L.askQty)) ? U.nz(L.bidQty) + U.nz(L.askQty) : null;
+    // IV: file value preferred, price-implied as fallback / cross-check
+    L.ivFile = U.isNum(L.iv) ? L.iv / 100 : null;
+    L.ivImplied = (tctx.known && L.px != null && L.px > L.intrinsic * 1.001) ? impliedVol(side, S, K, tctx.T, r, q, L.px) : null;
+    L.ivUsed = L.ivFile != null ? L.ivFile : L.ivImplied;
+    L.ivSource = L.ivFile != null ? 'file' : (L.ivImplied != null ? 'implied from price' : null);
+    L.ivMismatch = L.ivFile != null && L.ivImplied != null && Math.abs(L.ivFile - L.ivImplied) > 0.06;
+    // Greeks
+    const provided = ['delta', 'gamma', 'theta', 'vega'].every(f => U.isNum(L[f]));
+    if (provided) { L.greekSource = 'Provided'; }
+    else if (tctx.known && L.ivUsed != null && !tctx.expired) {
+      const g = bs(side, S, K, tctx.T, r, q, L.ivUsed);
+      L.delta = g.delta; L.gamma = g.gamma; L.theta = g.theta; L.vega = g.vega; L.rho = g.rho;
+      L.greekSource = (spotActual && L.ivSource === 'file') ? 'Calculated' : 'Estimated';
+      L.greekNote = !spotActual ? 'spot is a synthetic estimate' : (L.ivSource !== 'file' ? 'IV implied from price' : '');
+    } else { L.greekSource = null; }
+    L.thetaBurn = (L.theta != null && L.px > 0) ? Math.abs(L.theta) / L.px : null;
+    L.ivCrushPct = (L.vega != null && L.px > 0) ? cfg.ivCrushPts * L.vega / L.px : null;
+    L.flow = classifyFlow(L, side, cfg);
+  }
+}
+
+/* =====================  ANALYTICS  ===================== */
+function nearWindow(strikes, atmK, step, n) { return strikes.filter(s => Math.abs(s.strike - atmK) <= n * step + 1e-9); }
+
+/* Max pain: strike K minimising total intrinsic payout of all option writers.
+   payout(K) = sum_calls OI_c * max(0, K - Kc) + sum_puts OI_p * max(0, Kp - K)                     */
+function maxPain(strikes) {
+  let best = null; const curve = [];
+  for (const t of strikes) {
+    let pay = 0;
+    for (const s of strikes) pay += U.nz(s.CE.oi) * Math.max(0, t.strike - s.strike) + U.nz(s.PE.oi) * Math.max(0, s.strike - t.strike);
+    curve.push({ K: t.strike, pay });
+    if (!best || pay < best.pay) best = { K: t.strike, pay };
+  }
+  return { strike: best ? best.K : null, curve };
+}
+
+function pcrEngine(strikes, win, cfg) {
+  const sum = (arr, side, f) => U.sum(arr.map(s => U.nz(s[side][f])));
+  const pos = (arr, side) => U.sum(arr.map(s => Math.max(0, U.nz(s[side].chgOi))));
+  const ratio = (a, b) => b > 0 ? a / b : null;
+  const out = {
+    oiAll: ratio(sum(strikes, 'PE', 'oi'), sum(strikes, 'CE', 'oi')),
+    oiNear: ratio(sum(win, 'PE', 'oi'), sum(win, 'CE', 'oi')),
+    volAll: ratio(sum(strikes, 'PE', 'volume'), sum(strikes, 'CE', 'volume')),
+    volNear: ratio(sum(win, 'PE', 'volume'), sum(win, 'CE', 'volume')),
+    freshNear: ratio(pos(win, 'PE'), pos(win, 'CE')),
+    netChgNear: ratio(sum(win, 'PE', 'chgOi'), sum(win, 'CE', 'chgOi')),
+    ceOiAll: sum(strikes, 'CE', 'oi'), peOiAll: sum(strikes, 'PE', 'oi')
+  };
+  // continuous tilt (no universal thresholds): geometric blend of OI-based ratios, squashed by tanh
+  const parts = [out.oiAll, out.oiNear, out.freshNear].filter(x => x != null && x > 0);
+  out.blend = parts.length ? Math.exp(U.mean(parts.map(Math.log))) : null;
+  out.tilt = out.blend != null ? Math.tanh(1.5 * Math.log(out.blend)) : null;
+  // context-based interpretation
+  const t = [];
+  if (out.oiAll != null && out.oiNear != null) {
+    if (out.oiNear > out.oiAll * 1.15) t.push(`near-ATM puts are relatively heavier (${out.oiNear.toFixed(2)}) than the full chain (${out.oiAll.toFixed(2)}), pointing to support being built close to spot`);
+    else if (out.oiNear < out.oiAll / 1.15) t.push(`near-ATM calls are relatively heavier (${out.oiNear.toFixed(2)}) than the full chain (${out.oiAll.toFixed(2)}), pointing to supply being built close to spot`);
+    else t.push(`near-ATM (${out.oiNear.toFixed(2)}) and full-chain (${out.oiAll.toFixed(2)}) positioning are in line`);
+  }
+  if (out.freshNear != null) t.push(out.freshNear > 1 ? `fresh put additions (${out.freshNear.toFixed(2)}x) outweigh fresh call additions` : `fresh call additions outweigh fresh put additions (fresh PCR ${out.freshNear.toFixed(2)})`);
+  if (out.volNear != null && out.oiNear != null) t.push(`volume PCR near ATM is ${out.volNear.toFixed(2)} versus OI PCR ${out.oiNear.toFixed(2)} (a PCR in isolation does not indicate direction: heavy writing on either side raises it)`);
+  out.interpretation = t;
+  return out;
+}
+
+function ivEngine(strikes, win, ctx) {
+  const { S, atmK, step, cfg } = ctx;
+  const at = strikes.find(s => s.strike === atmK);
+  const near1 = strikes.filter(s => Math.abs(s.strike - atmK) <= step + 1e-9);
+  const pick = side => { const v = near1.map(s => s[side].ivUsed).filter(U.isNum); return v.length ? U.mean(v) : null; };
+  const ceIv = pick('CE'), peIv = pick('PE');
+  const atmIv = (ceIv != null && peIv != null) ? (ceIv + peIv) / 2 : (ceIv ?? peIv);
+  const put3 = strikes.find(s => Math.abs(s.strike - (atmK - 3 * step)) < 1e-6), call3 = strikes.find(s => Math.abs(s.strike - (atmK + 3 * step)) < 1e-6);
+  const skew = (put3 && call3 && U.isNum(put3.PE.ivUsed) && U.isNum(call3.CE.ivUsed)) ? (put3.PE.ivUsed - call3.CE.ivUsed) * 100 : null;
+  const cp = (at && U.isNum(at.CE.ivUsed) && U.isNum(at.PE.ivUsed)) ? (at.CE.ivUsed - at.PE.ivUsed) * 100 : null;
+  const series = win.flatMap(s => ['CE', 'PE'].map(side => s[side].ivUsed)).filter(U.isNum);
+  const lo = series.length ? Math.min(...series) : null, hi = series.length ? Math.max(...series) : null;
+  const rich = [], cheap = [];
+  if (atmIv) for (const s of win) for (const side of ['CE', 'PE']) {
+    const L = s[side]; if (!U.isNum(L.ivUsed)) continue;
+    L.ivRel = L.ivUsed / atmIv - 1;
+    if (L.ivRel > 0.25) rich.push({ K: s.strike, side, rel: L.ivRel }); else if (L.ivRel < -0.10) cheap.push({ K: s.strike, side, rel: L.ivRel });
+  }
+  const mism = win.reduce((n, s) => n + ['CE', 'PE'].filter(sd => s[sd].ivMismatch).length, 0);
+  return { ceIv, peIv, atmIv, skew, cpSpread: cp, min: lo, max: hi, rich, cheap, mismatchCount: mism,
+    notes: ['IV expansion/contraction needs historical snapshots: not available from a single file'] };
+}
+
+/* ---------- OI flow, volume and momentum (direction evidence) ---------- */
+function flowEngine(strikes, win, ctx) {
+  const { S, EM, cfg } = ctx;
+  let bull = 0, bear = 0, tot = 0, cls = 0, vb = 0, vtot = 0;
+  const rows = [];
+  for (const s of win) for (const side of ['CE', 'PE']) {
+    const L = s[side], fl = L.flow;
+    const prox = 1 / (1 + Math.pow(Math.abs(s.strike - S) / EM, 2));
+    const w = Math.abs(U.nz(L.chgOi)) * prox; tot += w;
+    if (fl && fl.bias !== 0) {
+      cls += w; if (fl.bias > 0) bull += w; else bear += w;
+      const vw = U.nz(L.volume) * prox; vb += vw * fl.bias; vtot += vw;
+    }
+    if (fl && fl.code !== 'NA') rows.push({ K: s.strike, side, flow: fl, chgOi: L.chgOi, chg: L.chg, volume: L.volume, iv: L.ivUsed, oi: L.oi, w });
+  }
+  rows.sort((a, b) => b.w - a.w);
+  return {
+    x: cls > 0 ? (bull - bear) / (bull + bear) : null, coverage: tot > 0 ? cls / tot : 0,
+    bullW: bull, bearW: bear, volFlow: vtot > 0 ? vb / vtot : null, rows: rows.slice(0, 10), counts: countFlows(win)
+  };
+}
+function countFlows(win) {
+  const c = { CE: { LB: 0, SB: 0, SC: 0, LU: 0 }, PE: { LB: 0, SB: 0, SC: 0, LU: 0 } };
+  for (const s of win) for (const side of ['CE', 'PE']) { const f = s[side].flow; if (f && c[side][f.code] !== undefined) c[side][f.code] += Math.abs(U.nz(s[side].chgOi)); }
+  return c;
+}
+function volumeEngine(strikes, win, ctx, flow) {
+  const sum = (side) => U.sum(win.map(s => U.nz(s[side].volume)));
+  const ce = sum('CE'), pe = sum('PE'), tot = ce + pe;
+  const top = side => { const v = win.map(s => ({ K: s.strike, v: U.nz(s[side].volume) })).sort((a, b) => b.v - a.v); const t = U.sum(v.map(x => x.v)); return { share: t > 0 ? U.sum(v.slice(0, 3).map(x => x.v)) / t : null, strikes: v.slice(0, 3).map(x => x.K) }; };
+  const ceTop = top('CE'), peTop = top('PE');
+  // outliers: cross-sectional robust z-score (no history available)
+  const spikes = [];
+  for (const side of ['CE', 'PE']) {
+    const vals = win.map(s => s[side].volume).filter(v => U.isNum(v) && v > 0);
+    const med = U.median(vals); if (med == null) continue;
+    const mad = U.median(vals.map(v => Math.abs(v - med))) || 1;
+    for (const s of win) { const v = s[side].volume; if (U.isNum(v) && v > 0) { const z = 0.6745 * (v - med) / mad; if (z > 3.5) spikes.push({ K: s.strike, side, z }); } }
+  }
+  const vo = side => { const a = U.sum(win.map(s => U.nz(s[side].volume))), b = U.sum(win.map(s => U.nz(s[side].oi))); return b > 0 ? a / b : null; };
+  const vf = flow.volFlow;
+  const dirSign = Math.sign(ctx.D || 0);
+  let label = 'Weak Volume Confirmation';
+  if (vf != null && Math.abs(vf) >= 0.35 && (dirSign === 0 || Math.sign(vf) === dirSign)) label = 'Strong Volume Confirmation';
+  return { ce, pe, total: tot, imbalance: tot > 0 ? (pe - ce) / tot : null, ceTop, peTop, volOiCE: vo('CE'), volOiPE: vo('PE'), spikes, volFlow: vf, label,
+    note: 'Volume/OI is shown for reference. Volume and OI can be reported in different units, so only cross-strike (relative) comparisons feed the score.' };
+}
+/* Premium-implied underlying move since previous close: change(C) - change(P) = change(S) by parity */
+function momentumEngine(strikes, win, ctx) {
+  const d = [];
+  for (const s of win) {
+    const C = s.CE, P = s.PE;
+    if (U.isNum(C.chg) && U.isNum(P.chg) && U.isNum(C.ltp) && U.isNum(P.ltp) && !C.ltpStale && !P.ltpStale && C.volume > 0 && P.volume > 0) d.push(C.chg - P.chg);
+  }
+  if (d.length < 3) return { points: null, n: d.length };
+  const med = U.median(d), mad = U.median(d.map(x => Math.abs(x - med)));
+  return { points: med, pct: 100 * med / ctx.S, mad, n: d.length, prevClose: ctx.S - med, z: ctx.EM ? med / ctx.EM : null };
+}
+
+/* ---------- support / resistance walls ---------- */
+function wallScores(strikes, side, ctx) {
+  const { S, EM, atmK, step, cfg } = ctx, w = cfg.wallWeights;
+  const win = strikes.filter(s => Math.abs(s.strike - atmK) <= cfg.wallSteps * step + 1e-9);
+  const legs = win.map(s => ({ K: s.strike, L: s[side] }));
+  const maxOi = Math.max(1, U.max(legs.map(x => x.L.oi)));
+  const maxChg = Math.max(1, ...legs.map(x => Math.abs(U.nz(x.L.chgOi))));
+  const vols = legs.map(x => x.L.volume);
+  const out = [];
+  legs.forEach((x, i) => {
+    const L = x.L;
+    if (!U.isNum(L.oi) || L.oi <= 0) { out.push({ K: x.K, score: 0, comps: {}, L }); return; }
+    const c = {};
+    c.oi = L.oi / maxOi;
+    if (U.isNum(L.chgOi) || L.nil.chgOi) c.fresh = U.clamp(0.5 + 0.5 * U.nz(L.chgOi) / maxChg);
+    if (L.flow && L.flow.code !== 'NA' && L.flow.code !== 'NEUTRAL') c.prem = ({ SB: 1, LB: 0.35, LU: 0.2, SC: 0.1 })[L.flow.code];
+    if (U.isNum(L.volume)) c.vol = U.pctRank(vols, L.volume);
+    const nb = [i - 2, i - 1, i + 1, i + 2].filter(j => j >= 0 && j < legs.length).map(j => U.nz(legs[j].L.oi));
+    const avg = nb.length ? U.mean(nb) : 0;
+    c.prom = avg > 0 ? U.clamp((L.oi / avg - 1) / 2) : 1;
+    c.prox = 1 / (1 + Math.pow(Math.abs(x.K - S) / EM, 2));
+    let ws = 0, acc = 0; for (const k of Object.keys(c)) { if (c[k] == null) continue; ws += w[k]; acc += w[k] * c[k]; }
+    out.push({ K: x.K, score: ws ? acc / ws : 0, comps: c, L });
+  });
+  return out;
+}
+function buildZones(scoreArr, side /* 'support' | 'resistance' */, ctx, opts = {}) {
+  const { S, step } = ctx;
+  const ok0 = x => opts.crossed ? (side === 'support' ? x.K >= S && x.K - S <= (opts.maxDist || Infinity) : x.K <= S && S - x.K <= (opts.maxDist || Infinity))
+                               : (side === 'support' ? x.K < S : x.K > S);
+  const ok = x => ok0(x) && (!opts.filter || opts.filter(x));
+  const byK = new Map(scoreArr.map(x => [+x.K.toFixed(6), x]));
+  const used = new Set(), zones = [];
+  for (const p of [...scoreArr.filter(ok)].sort((a, b) => b.score - a.score)) {
+    if (p.score <= 0 || zones.length >= (opts.max || 3)) break;
+    if (used.has(+p.K.toFixed(6))) continue;
+    let lo = p.K, hi = p.K;
+    for (const dir of [-1, 1]) {
+      let k = p.K + dir * step;
+      for (;;) { const n = byK.get(+k.toFixed(6)); if (!n || n.score < 0.8 * p.score || !ok(n) || used.has(+k.toFixed(6))) break; if (dir < 0) lo = n.K; else hi = n.K; k += dir * step; }
+    }
+    for (let k = lo - step; k <= hi + step + 1e-9; k += step) used.add(+k.toFixed(6));
+    const members = scoreArr.filter(x => x.K >= lo - 1e-9 && x.K <= hi + 1e-9);
+    const L = p.L;
+    zones.push({ side, peak: p.K, low: lo, high: hi, strength: Math.round(100 * p.score), comps: p.comps, flow: L.flow,
+      oi: U.sum(members.map(m => U.nz(m.L.oi))), chgOi: U.sum(members.map(m => U.nz(m.L.chgOi))), volume: L.volume, chg: L.chg, ltp: L.ltp, dist: p.K - S });
+  }
+  const grade = z => z.strength >= 70 ? 'Strong' : z.strength >= 50 ? 'Moderate' : 'Weak';
+  zones.forEach(z => z.grade = grade(z));
+  return zones;
+}
+function srEngine(strikes, ctx) {
+  const putScores = wallScores(strikes, 'PE', ctx), callScores = wallScores(strikes, 'CE', ctx);
+  const byProx = (a, b) => Math.abs(a.peak - ctx.S) - Math.abs(b.peak - ctx.S);
+  const sup = buildZones(putScores, 'support', ctx, { max: 3 }).sort(byProx);
+  const res = buildZones(callScores, 'resistance', ctx, { max: 3 }).sort(byProx);
+  // a "crossed" wall must be a writers' wall (not option buyers' long build-up) and reasonably strong
+  const wr = x => x.score >= 0.45 && !(x.L.flow && x.L.flow.code === 'LB');
+  const crossedRes = buildZones(callScores, 'resistance', ctx, { crossed: true, max: 1, maxDist: 0.6 * ctx.EM, filter: wr })[0] || null;
+  const crossedSup = buildZones(putScores, 'support', ctx, { crossed: true, max: 1, maxDist: 0.6 * ctx.EM, filter: wr })[0] || null;
+  return { support: sup, resistance: res, crossedRes, crossedSup, putScores, callScores };
+}
+
+OCI.analytics = { nearWindow, maxPain, pcrEngine, ivEngine, flowEngine, volumeEngine, momentumEngine, srEngine, timeContext, estimateSpot, enrichLegs, classifyFlow, FLOW_LABEL };
+/* =====================  SIGNALS: direction, regime, breakout, candidate scoring  ===================== */
+
+/* Direction evidence: four independent signals in [-1, +1] (+ bullish), blended with configurable weights.
+   flow       OI build-up / unwinding combined with premium behaviour, volume-weighted by proximity to spot
+   structure  support-vs-resistance strength asymmetry, discounted by distance to spot
+   momentum   underlying move since previous close implied by option premiums (put-call parity)
+   pcr        tanh of the log of a blended PCR (continuous, no universal thresholds)                        */
+function directionEngine(ctx, flow, pcr, sr, mom) {
+  const { S, EM, cfg } = ctx, w = cfg.dirWeights;
+  const zs = zones => U.sum(zones.slice(0, 2).map(z => (z.strength / 100) / (1 + Math.pow(Math.abs(z.peak - S) / EM, 2))));
+  const sup = zs(sr.support), res = zs(sr.resistance);
+  const signals = {
+    flow: flow.x,
+    structure: (sup + res) > 0 ? (sup - res) / (sup + res) : null,
+    momentum: mom.points != null && mom.z != null ? Math.tanh(cfg.momentumGain * mom.z) : null,
+    pcr: pcr.tilt
+  };
+  let ws = 0, acc = 0;
+  for (const k of Object.keys(signals)) if (signals[k] != null) { ws += w[k]; acc += w[k] * signals[k]; }
+  const D = ws > 0 ? acc / ws : null;
+  const ds = Math.sign(D || 0);
+  let agree = 0, oppose = 0, neutral = 0;
+  for (const k of Object.keys(signals)) { const x = signals[k]; if (x == null) continue; if (Math.abs(x) < 0.1 || ds === 0) neutral++; else if (Math.sign(x) === ds) agree++; else oppose++; }
+  return { signals, D, available: Object.values(signals).filter(x => x != null).length, agree, oppose, neutral,
+    conflict: (agree + oppose) > 0 ? oppose / (agree + oppose) : 0, supSum: sup, resSum: res };
+}
+
+/* ---------- breakout / breakdown (single-snapshot evidence) ---------- */
+function strikeAt(strikes, K) { return strikes.find(s => Math.abs(s.strike - K) < 1e-6); }
+function evalBreakout(dir, ctx, sr, strikes, win) {
+  const { S, EM } = ctx;
+  const up = dir > 0;
+  const wall = up ? sr.crossedRes : sr.crossedSup;        // heavy wall the price has already moved through
+  const next = up ? sr.resistance[0] : sr.support[0];     // next wall in the direction of travel
+  const own = up ? sr.support[0] : sr.resistance[0];      // protective wall behind price
+  const checks = [];
+  const leg = wall ? strikeAt(strikes, wall.peak)[up ? 'CE' : 'PE'] : null;
+  const sideVols = win.map(s => s[up ? 'CE' : 'PE'].volume);
+  const pen = wall ? (up ? S - wall.high : wall.low - S) : 0;
+  const beyond = wall ? pen > ctx.cfg.minBreakEM * EM : false;   // must clear the wall by more than market noise
+  checks.push({ id: 'cross', name: up ? 'Spot above resistance' : 'Spot below support', pass: wall ? beyond : false,
+    detail: wall ? `${up ? 'Call' : 'Put'} wall at ${wall.low === wall.high ? wall.peak : wall.low + '-' + wall.high} (strength ${wall.strength}); spot ${S.toFixed(0)}` : `No significant ${up ? 'call' : 'put'} wall has been crossed within 0.6x expected move` });
+  checks.push({ id: 'unwind', name: up ? 'Resistance-side Call OI unwinding' : 'Support-side Put OI unwinding', pass: leg && U.isNum(leg.chgOi) ? leg.chgOi < 0 : null,
+    detail: leg ? `OI change at ${wall.peak}: ${U.isNum(leg.chgOi) ? leg.chgOi.toLocaleString('en-IN') : 'n/a'}` : 'No crossed wall to assess' });
+  const vr = leg && U.isNum(leg.volume) ? U.pctRank(sideVols, leg.volume) : null;
+  checks.push({ id: 'volume', name: 'Volume confirmation at the wall', pass: vr != null ? vr >= 0.75 : null, detail: vr != null ? `Volume at ${wall.peak} ranks in the ${Math.round(vr * 100)}th percentile of near-ATM ${up ? 'calls' : 'puts'}` : 'No crossed wall to assess' });
+  checks.push({ id: 'premium', name: up ? 'CE premium expansion' : 'PE premium expansion', pass: leg && U.isNum(leg.chg) ? leg.chg > 0 : null, detail: leg && U.isNum(leg.chg) ? `Premium change at ${wall.peak}: ${leg.chg > 0 ? '+' : ''}${leg.chg}` : 'No crossed wall to assess' });
+  checks.push({ id: 'support', name: up ? 'Put-side support behind price' : 'Call-side supply behind price', pass: own ? (own.strength >= 50) : false,
+    detail: own ? `${up ? 'Support' : 'Resistance'} ${own.low === own.high ? own.peak : own.low + '-' + own.high}, strength ${own.strength}` : 'No protective wall found' });
+  const assessed = checks.filter(c => c.pass !== null), passed = checks.filter(c => c.pass === true).length;
+  const frac = assessed.length ? passed / assessed.length : 0;
+  let state;
+  if (wall && beyond) state = (passed >= 4 && checks[1].pass === true) ? 'confirmed' : 'unconfirmed';
+  else if ((wall && pen > 0) || (next && Math.abs((up ? next.low : next.high) - S) <= 0.35 * EM)) state = 'approaching';
+  else state = 'none';
+  const falseRisk = state === 'unconfirmed' && ((leg && U.isNum(leg.chgOi) && leg.chgOi > 0) || (vr != null && vr < 0.75) || (leg && U.isNum(leg.chg) && leg.chg <= 0));
+  const score = state === 'confirmed' ? 0.6 + 0.4 * frac : state === 'approaching' ? 0.45 : state === 'unconfirmed' ? 0.25 : 0.3;
+  return { dir, state, wall, next, checks, passed, assessed: assessed.length, frac, falseRisk, score,
+    label: state === 'confirmed' ? (up ? 'Bullish breakout confirmed' : 'Bearish breakdown confirmed') : state === 'approaching' ? (up ? 'Approaching resistance (no breakout yet)' : 'Approaching support (no breakdown yet)') : state === 'unconfirmed' ? (up ? 'Moved through resistance without confirmation' : 'Moved through support without confirmation') : 'No breakout / breakdown in progress' };
+}
+function breakoutEngine(ctx, sr, strikes, win) {
+  const up = evalBreakout(1, ctx, sr, strikes, win), down = evalBreakout(-1, ctx, sr, strikes, win);
+  return { up, down, falseBreakout: up.falseRisk || down.falseRisk,
+    notAssessable: ['Rejection after a breakout and price returning below the level need time-series data and cannot be seen in one snapshot'] };
+}
+
+/* ---------- market regime ---------- */
+function regimeEngine(ctx, dirE, iv, sr, bk, dq, win) {
+  const { S, EM, cfg } = ctx; const why = [];
+  const emPct = EM ? 100 * EM / S : null;
+  const flags = [];
+  if (emPct != null && emPct > cfg.unstableEMpct) flags.push(`expected 1-sigma move is ${emPct.toFixed(2)}% of spot`);
+  if (iv.cpSpread != null && Math.abs(iv.cpSpread) > 3) flags.push(`ATM call/put IV differ by ${Math.abs(iv.cpSpread).toFixed(1)} vol points`);
+  const legsN = Math.max(1, win.length * 2);
+  if (iv.mismatchCount / legsN > 0.25) flags.push(`${iv.mismatchCount} of ${legsN} near-ATM IVs disagree with price-implied IV`);
+  const wideN = win.reduce((n, s) => n + ['CE', 'PE'].filter(sd => s[sd].spreadPct > cfg.maxSpreadPct).length, 0);
+  if (wideN / legsN > 0.3) flags.push(`${wideN} of ${legsN} near-ATM quotes are wider than ${cfg.maxSpreadPct}%`);
+  const s1 = sr.support[0], r1 = sr.resistance[0];
+  const band = (s1 && r1) ? r1.peak - s1.peak : null, bandEM = band != null && EM ? band / EM : null;
+  let regime;
+  if (dq.score < cfg.minDQ || dirE.available < 2 || dirE.D == null) { regime = 'INSUFFICIENT DATA'; why.push(`data quality ${dq.score}% or too few usable signals (${dirE.available} of 4)`); }
+  else if (flags.length >= 2) { regime = 'HIGH VOLATILITY / UNSTABLE'; flags.forEach(f => why.push(f)); }
+  else {
+    const D = dirE.D, bkDir = bk.up.state === 'confirmed' ? 1 : bk.down.state === 'confirmed' ? -1 : 0;
+    if (Math.abs(D) < 0.2 || dirE.conflict >= 0.5) {
+      regime = 'RANGE / NEUTRAL';
+      why.push(Math.abs(D) < 0.2 ? `blended direction score ${D.toFixed(2)} is inside the neutral zone` : `${dirE.oppose} of ${dirE.agree + dirE.oppose} directional signals conflict`);
+    } else if (bandEM != null && bandEM <= 1 && bkDir === 0 && Math.abs(D) < 0.5) {
+      regime = 'RANGE / NEUTRAL';
+      why.push(`price is pinned between support ${s1.peak} and resistance ${r1.peak} (${band} points, ${bandEM.toFixed(2)}x expected move) with no confirmed breakout`);
+    } else if (D >= 0.55) regime = 'STRONG BULLISH';
+    else if (D >= 0.2) regime = 'BULLISH';
+    else if (D <= -0.55) regime = 'STRONG BEARISH';
+    else regime = 'BEARISH';
+    if (/BULLISH|BEARISH/.test(regime)) why.push(`blended direction score ${D.toFixed(2)} with ${dirE.agree} agreeing and ${dirE.oppose} opposing signals`);
+  }
+  const bias = dirE.D == null ? 'Unknown' : dirE.D >= 0.2 ? 'Bullish' : dirE.D <= -0.2 ? 'Bearish' : 'Neutral';
+  return { regime, bias, why, instabilityFlags: flags, band, bandEM, emPct };
+}
+
+/* ---------- candidate generation & scoring ---------- */
+const FACTOR_LABEL = { structure: 'Market structure', oi: 'OI intelligence', volume: 'Volume', pcr: 'PCR', iv: 'IV', greeks: 'Greeks', liquidity: 'Liquidity', momentum: 'Momentum / breakout', rr: 'Risk / reward' };
+OCI.FACTOR_LABEL = FACTOR_LABEL;
+
+function scoreFactors(side, L, K, plan, ctx) {
+  const { S, EM, cfg, sr, dirE, pcr, flow, mom, iv, win, bk } = ctx, dir = side === 'CE' ? 1 : -1;
+  const f = {}, notes = {};
+  // MARKET STRUCTURE: alignment with wall asymmetry + room before the nearest opposing wall
+  const opp = dir > 0 ? sr.resistance[0] : sr.support[0];
+  const parts = [];
+  if (dirE.signals.structure != null) parts.push((1 + dir * dirE.signals.structure) / 2);
+  if (opp) { const lvl = dir > 0 ? opp.low : opp.high; let room = U.clamp(dir * (lvl - S) / (0.6 * EM)); if (opp.strength < cfg.strongWall) room = 0.5 + 0.5 * room; parts.push(room); notes.room = `${Math.round(Math.abs(lvl - S))} pts to ${dir > 0 ? 'resistance' : 'support'} ${opp.peak}`; }
+  else parts.push(1);
+  f.structure = parts.length ? U.mean(parts) : null;
+  // OI INTELLIGENCE: chain-wide flow alignment + the strike's own build-up type
+  const op = [], chain = flow.x != null ? (1 + dir * flow.x) / 2 : null;
+  const local = L.flow && L.flow.code !== 'NA' ? ({ LB: 0.85, SC: 0.75, NEUTRAL: 0.5, SB: 0.2, LU: 0.3 })[L.flow.code] : null;
+  f.oi = (chain != null && local != null) ? 0.6 * chain + 0.4 * local : (chain ?? local);
+  // VOLUME: own relative volume + volume-weighted flow alignment
+  const sideVols = win.map(s => s[side].volume);
+  const own = U.isNum(L.volume) ? U.pctRank(sideVols, L.volume) : null;
+  const va = flow.volFlow != null ? (1 + dir * flow.volFlow) / 2 : null;
+  f.volume = (own != null && va != null) ? 0.6 * own + 0.4 * va : (own ?? va);
+  // PCR
+  f.pcr = pcr.tilt != null ? (1 + dir * pcr.tilt) / 2 : null;
+  // IV: relative to ATM IV, minus a vega-share (IV-crush) penalty
+  if (L.ivUsed != null && iv.atmIv) {
+    const rel = L.ivUsed / iv.atmIv - 1; let s = U.clamp(0.65 - 1.5 * rel);
+    if (L.ivCrushPct != null) s *= 1 - U.clamp(L.ivCrushPct - 0.1, 0, 0.4);
+    f.iv = s;
+  } else f.iv = null;
+  // GREEKS: |delta| inside the preferred band + theta burn (premium lost per day)
+  if (L.delta != null) {
+    const d = Math.abs(L.delta), [lo, hi] = cfg.deltaBand;
+    const fit = d >= lo && d <= hi ? 1 : d < lo ? U.clamp((d - 0.15) / (lo - 0.15)) : U.clamp((0.95 - d) / (0.95 - hi));
+    const th = L.thetaBurn != null ? U.clamp(1 - L.thetaBurn / 0.6) : null;
+    f.greeks = th != null ? 0.6 * fit + 0.4 * th : fit;
+  } else f.greeks = null;
+  // LIQUIDITY
+  if (L.spreadPct != null) {
+    const sp = U.clamp(1 - L.spreadPct / cfg.maxSpreadPct);
+    const depthRank = L.depth != null ? U.pctRank(win.map(s => s[side].depth), L.depth) : null;
+    const oiRank = U.isNum(L.oi) ? U.pctRank(win.map(s => s[side].oi), L.oi) : null;
+    const rest = [[depthRank, .2], [oiRank, .2], [own, .2]].filter(x => x[0] != null);
+    const rw = U.sum(rest.map(x => x[1])), ra = U.sum(rest.map(x => x[0] * x[1]));
+    f.liquidity = (0.4 * sp + ra) / (0.4 + rw);
+  } else f.liquidity = null;
+  // MOMENTUM / BREAKOUT
+  const b = dir > 0 ? bk.up : bk.down;
+  const ma = mom.z != null ? (1 + dir * Math.tanh(cfg.momentumGain * mom.z)) / 2 : null;
+  f.momentum = ma != null ? 0.6 * ma + 0.4 * b.score : b.score;
+  // RISK / REWARD
+  f.rr = plan && plan.ok ? U.clamp((plan.rr.main - 0.5) / 2.5) : (plan ? 0 : null);
+  return { f, notes };
+}
+
+function gateCandidate(c, ctx) {
+  const { cfg, dirE, regime, dq } = ctx, L = c.leg, dir = c.dir, G = [];
+  const add = (id, pass, hard, msg) => G.push({ id, pass, hard, msg });
+  add('quote', L.tradable, true, L.tradable ? 'Two-sided quote available' : 'No usable two-sided quote');
+  if (L.spreadPct != null) add('spread', L.spreadPct <= cfg.maxSpreadPct, true, `Spread ${L.spreadPct.toFixed(2)}% of mid (limit ${cfg.maxSpreadPct}%)`);
+  add('traded', L.volume > 0, true, L.volume > 0 ? 'Traded today' : 'No traded volume');
+  add('plan', !!(c.plan && c.plan.ok), true, c.plan && c.plan.ok ? 'Premium targets and stop derived' : (c.plan ? c.plan.reason : 'Plan not available'));
+  if (L.delta != null) { const d = Math.abs(L.delta); add('delta', d >= cfg.minDelta, d < 0.12, `|Delta| ${d.toFixed(2)} (minimum ${cfg.minDelta}${ctx.tctx.dte <= 2 ? ', near expiry' : ''})`); }
+  if (c.plan && c.plan.ok) {
+    add('rr', c.plan.rr.main >= cfg.minRR, true, `R:R 1 : ${c.plan.rr.main.toFixed(2)} (minimum 1 : ${cfg.minRR})`);
+    if (c.plan.rr.main >= cfg.minRR) add('rr_pref', c.plan.rr.main >= cfg.goodRR, false, `R:R 1 : ${c.plan.rr.main.toFixed(2)} (preferred 1 : ${cfg.goodRR})`);
+    add('entry', c.plan.avoidAbove >= L.ask, true, c.plan.avoidAbove >= L.ask ? `Acceptable up to ₹${c.plan.avoidAbove.toFixed(2)}` : `Even at the ask (₹${L.ask}) R:R falls below the minimum`);
+  }
+  const al = dirE.D != null ? dir * dirE.D : null;
+  if (al != null) { add('bias', al >= 0, true, `Direction score ${dirE.D.toFixed(2)} ${al >= 0 ? 'does not oppose' : 'opposes'} this trade`); if (al >= 0) add('bias_str', al >= cfg.minBias, false, `Direction-aligned strength ${al.toFixed(2)} (needs ${cfg.minBias})`); }
+  const b = dir > 0 ? ctx.bk.up : ctx.bk.down;
+  if (/RANGE/.test(regime.regime)) add('regime', b.state === 'confirmed', false, `Range-bound market: ${b.label.toLowerCase()}`);
+  else if (/UNSTABLE/.test(regime.regime)) add('regime', false, false, 'Market flagged high-volatility / unstable');
+  else if (/INSUFFICIENT/.test(regime.regime)) add('regime', false, true, 'Insufficient data for a regime call');
+  add('conflict', dirE.conflict < cfg.conflictCap, false, `${dirE.oppose} of ${dirE.agree + dirE.oppose} directional signals oppose the lead signal`);
+  add('dq', dq.score >= cfg.minDQ, true, `Data quality ${dq.score}% (minimum ${cfg.minDQ}%)`);
+  if (b.falseRisk) add('false_bo', false, false, 'FALSE BREAKOUT RISK — AVOID CHASING');
+  return G;
+}
+
+function buildCandidates(ctx, strikes) {
+  const { atmK, step, cfg } = ctx, out = { CE: [], PE: [] };
+  for (const side of ['CE', 'PE']) for (const off of cfg.candidateOffsets) {
+    const K = side === 'CE' ? atmK + off * step : atmK - off * step;
+    const rec = strikeAt(strikes, K); if (!rec) continue;
+    const L = rec[side], dir = side === 'CE' ? 1 : -1;
+    const label = off === 0 ? 'ATM' : (off < 0 ? `ITM ${-off}` : `OTM ${off}`);
+    const c = { side, K, off, label, dir, leg: L, exists: true };
+    c.plan = planTrade(side, K, L, ctx);
+    const sf = scoreFactors(side, L, K, c.plan, ctx);
+    c.factors = sf.f; c.notes = sf.notes;
+    // normalised weighted score; missing factors are dropped, then scaled by coverage and data quality
+    let ws = 0, wt = 0, acc = 0;
+    for (const k of Object.keys(cfg.weights)) { wt += cfg.weights[k]; if (c.factors[k] != null) { ws += cfg.weights[k]; acc += cfg.weights[k] * c.factors[k]; } }
+    c.coverage = wt ? ws / wt : 0;
+    c.rawScore = ws ? 100 * acc / ws : 0;
+    c.score = Math.round(c.rawScore * (0.5 + 0.5 * c.coverage) * (0.8 + 0.2 * U.clamp(ctx.dq.score / 100)));
+    c.signal = classifyScore(c.score, cfg);
+    c.gates = gateCandidate(c, ctx);
+    c.hardFails = c.gates.filter(g => !g.pass && g.hard);
+    c.softFails = c.gates.filter(g => !g.pass && !g.hard);
+    out[side].push(c);
+  }
+  for (const side of ['CE', 'PE']) out[side].sort((a, b) => b.score - a.score);
+  return out;
+}
+function classifyScore(s, cfg) { const t = cfg.thresholds; return s >= t.strong ? 'STRONG TRADE' : s >= t.trade ? 'TRADE' : s >= t.watch ? 'WATCH' : s >= t.weak ? 'WEAK' : 'NO TRADE'; }
+OCI.signals = { directionEngine, breakoutEngine, regimeEngine, buildCandidates, classifyScore, strikeAt };
+/* =====================  RISK ENGINE: entry, stop, targets, R:R, trailing  =====================
+   All levels are derived in UNDERLYING space (walls, expected move) and translated to option premium by
+   re-pricing the option with Black-Scholes at that underlying level, same IV, and a shortened time to expiry
+   (cfg.holdDays). No fixed percentage stops or targets are used.                                           */
+function planTrade(side, K, L, ctx) {
+  const { S, EM, step, cfg, tctx, sr, bk } = ctx, dir = side === 'CE' ? 1 : -1, r = cfg.rate, q = cfg.divYield;
+  if (!tctx.known || tctx.expired) return { ok: false, reason: tctx.expired ? 'Expiry has passed' : 'Expiry unknown: Greeks and premium targets cannot be derived' };
+  if (L.ivUsed == null || L.px == null || !L.quoteValid) return { ok: false, reason: 'No usable price / IV: premium targets cannot be derived' };
+  const iv = L.ivUsed, hold = Math.min(cfg.holdDays, 0.4 * tctx.Tdays) / 365, Tn = Math.max(tctx.T - hold, 0.25 / 24 / 365);
+  const priceAt = X => bs(side, X, K, Tn, r, q, iv).price;
+  const buf = cfg.slBufferSteps * step, own = dir > 0 ? sr.support : sr.resistance, fav = dir > 0 ? sr.resistance : sr.support;
+  const b = dir > 0 ? bk.up : bk.down;
+  const zl = z => z.low === z.high ? `${z.peak}` : `${z.low}-${z.high}`;
+
+  // ----- stop (underlying): just beyond the nearest protective wall, or back through a broken wall -----
+  let slLevel, slBasis;
+  if (own.length) { const z = own[0]; slLevel = dir > 0 ? z.low - buf : z.high + buf; slBasis = `${dir > 0 ? 'below' : 'above'} ${dir > 0 ? 'support' : 'resistance'} zone ${zl(z)} (strength ${z.strength})`; }
+  else { slLevel = S - dir * 0.5 * EM; slBasis = 'half an expected move away (no protective wall found)'; }
+  if (b.wall && (dir > 0 ? S > b.wall.high : S < b.wall.low)) {
+    const bl = dir > 0 ? b.wall.low - buf : b.wall.high + buf;
+    if (dir * (bl - slLevel) > 0) { slLevel = bl; slBasis = `back through the broken ${dir > 0 ? 'resistance' : 'support'} zone ${zl(b.wall)}`; }
+  }
+  if (dir * (S - slLevel) < cfg.minStopEM * EM) { slLevel = S - dir * cfg.minStopEM * EM; slBasis += `; widened to the volatility noise floor (${cfg.minStopEM} x expected move)`; }
+  const slP = priceAt(slLevel);
+
+  // ----- targets: wall edges, then expected-move extensions; walls that are strong block further targets unless confirmed -----
+  const lv = [];
+  for (const z of fav) lv.push({ lvl: dir > 0 ? z.low : z.high, kind: 'wall', z });
+  for (const k of [0.5, 1.0]) lv.push({ lvl: S + dir * k * EM, kind: 'volatility', label: `${k} x expected move` });
+  lv.forEach(x => x.d = dir * (x.lvl - S));
+  lv.sort((a, c) => a.d - c.d);
+  const targets = []; let blocked = null;
+  for (const x of lv) {
+    if (x.d <= 0) continue;
+    if (x.d < cfg.minTargetEM * EM) { if (x.kind === 'wall' && x.z.strength >= cfg.strongWall && b.state !== 'confirmed') { blocked = x; break; } continue; }
+    if (x.d > cfg.maxTargetEM * EM) break;
+    if (targets.length && Math.abs(x.lvl - targets[targets.length - 1].underlying) < 0.1 * EM) continue;
+    targets.push({ underlying: x.lvl, basis: x.kind === 'wall' ? `${dir > 0 ? 'resistance' : 'support'} zone ${zl(x.z)} (strength ${x.z.strength})` : x.label, kind: x.kind, strength: x.z ? x.z.strength : null });
+    if (x.kind === 'wall' && x.z.strength >= cfg.strongWall && b.state !== 'confirmed') break;
+    if (targets.length >= 3) break;
+  }
+  if (blocked) return { ok: false, reason: `Strong ${dir > 0 ? 'resistance' : 'support'} ${zl(blocked.z)} sits ${Math.round(blocked.d)} points away: no room before it` };
+  const entryRef = L.mid, risk = entryRef - slP;
+  if (!(risk > 0)) return { ok: false, reason: 'Stop premium is not below the entry price' };
+  targets.forEach((t, i) => { t.n = i + 1; t.premium = priceAt(t.underlying); t.reward = t.premium - entryRef; t.rr = t.reward / risk; });
+  const good = targets.filter(t => t.reward > 0);
+  if (!good.length) return { ok: false, reason: 'No target is logically supported or profitable after repricing' };
+  const main = good[1] || good[0];
+  const mp = main.premium, m = cfg.minRR, pMax = (mp + m * slP) / (1 + m);
+  const chase = underlyingForPrice(side, K, tctx.T, r, q, iv, pMax, S);
+  const lot = ctx.lotSize || null, riskPerLot = lot ? risk * lot : null;
+  const lotsByRisk = (cfg.riskCapital && riskPerLot) ? Math.max(0, Math.floor(cfg.riskCapital * cfg.riskPct / 100 / riskPerLot)) : null;
+  const rrAsk = (mp - L.ask) / (L.ask - slP);
+  const trailing = [
+    { when: 'Initial', premium: slP, text: `Stop at ₹${slP.toFixed(2)}: underlying ${dir > 0 ? 'below' : 'above'} ${slLevel.toFixed(0)}` },
+    { when: 'After T1', premium: entryRef, text: `Move stop to cost (₹${entryRef.toFixed(2)}); keep it behind the wall that was just cleared` },
+    good[1] ? { when: 'After T2', premium: good[0].premium, text: `Lift stop to Target 1 (₹${good[0].premium.toFixed(2)}, underlying ${good[0].underlying.toFixed(0)}) to lock the gain` } : null,
+    { when: 'Beyond', premium: null, text: `Trail ${dir > 0 ? 'below' : 'above'} the most recent protective wall as new OI zones form; no fixed percentage is used` }
+  ].filter(Boolean);
+  return {
+    ok: true, side, K, dir,
+    entry: { preferredLow: L.bid, preferredHigh: L.mid, aggressive: L.ask, ref: entryRef, ltp: L.ltp, underlying: S },
+    sl: { premium: slP, underlying: slLevel, basis: slBasis },
+    targets: good, risk, rr: { t1: good[0].rr, t2: good[1] ? good[1].rr : null, t3: good[2] ? good[2].rr : null, main: main.rr, mainIs: good[1] ? 'T2' : 'T1', atAsk: rrAsk },
+    avoidAbove: pMax, chaseLimit: chase, lotSize: lot, riskPerLot, lots: cfg.lots, lotsByRisk,
+    maxLoss: riskPerLot ? riskPerLot * (lotsByRisk != null && cfg.riskCapital ? Math.max(lotsByRisk, 1) : cfg.lots) : null,
+    trailing, holdDays: hold * 365,
+    invalidation: `Underlying trades ${dir > 0 ? 'below' : 'above'} ${slLevel.toFixed(0)} (${slBasis}). Exit on that level, not on a premium percentage.`,
+    assumptions: `Premiums re-priced at the target/stop underlying levels with IV unchanged and ${(hold * 365).toFixed(2)} day(s) elapsed.`
+  };
+}
+OCI.planTrade = planTrade;
+
+/* =====================  RECOMMENDATION ENGINE  ===================== */
+const inr = x => x == null ? '–' : '₹' + Number(x).toFixed(2);
+const nIN = x => x == null ? '–' : Number(x).toLocaleString('en-IN');
+const zlab = z => z.low === z.high ? `${z.peak}` : `${z.low}-${z.high}`;
+const sgn = x => (x > 0 ? '+' : '') + nIN(x);
+
+function describeFlow(z, noun) {
+  if (!z) return null;
+  const f = z.flow ? z.flow.label.toLowerCase() : null;
+  const parts = [`${noun} ${zlab(z)} (strength ${z.strength}, ${z.grade.toLowerCase()})`];
+  if (U.isNum(z.chgOi)) parts.push(`OI ${sgn(z.chgOi)}`);
+  if (U.isNum(z.chg)) parts.push(`premium ${z.chg > 0 ? '+' : ''}${z.chg}`);
+  if (f) parts.push(f);
+  return parts.join(', ');
+}
+
+function explainTrade(c, ctx) {
+  const { S, sr, pcr, mom, volume, iv, regime, dirE } = ctx, dir = c.dir, L = c.leg, p = c.plan, out = [];
+  const own = dir > 0 ? sr.support[0] : sr.resistance[0], opp = dir > 0 ? sr.resistance[0] : sr.support[0];
+  let s1 = `Spot is about ${Math.round(S)} (${ctx.spotSource.toLowerCase()}).`;
+  if (own) s1 += ` Protective ${dir > 0 ? 'support' : 'resistance'} ${zlab(own)} is ${Math.round(Math.abs(own.peak - S))} points away`;
+  if (opp) s1 += `${own ? ' and' : ''} the nearest ${dir > 0 ? 'resistance' : 'support'} ${zlab(opp)} is ${Math.round(Math.abs(opp.peak - S))} points away.`; else if (own) s1 += '.';
+  out.push(s1);
+  const a = describeFlow(own, dir > 0 ? 'Put side' : 'Call side'), b = describeFlow(opp, dir > 0 ? 'Call side' : 'Put side');
+  if (a || b) out.push(`OI behaviour: ${[a, b].filter(Boolean).join('; ')}.`);
+  if (volume.volFlow != null) out.push(`${volume.label}: volume-weighted OI flow is ${volume.volFlow > 0 ? 'bullish' : 'bearish'} (${volume.volFlow.toFixed(2)}); this strike traded ${nIN(L.volume)} contracts.`);
+  const pm = [];
+  if (pcr.oiNear != null) pm.push(`near-ATM OI PCR ${pcr.oiNear.toFixed(2)} (full chain ${pcr.oiAll != null ? pcr.oiAll.toFixed(2) : 'n/a'})`);
+  if (mom.points != null) pm.push(`premiums imply the underlying is ${mom.points >= 0 ? 'up' : 'down'} about ${Math.abs(mom.points).toFixed(0)} points since the previous close`);
+  if (pm.length) out.push(`Positioning and momentum: ${pm.join('; ')}.`);
+  const ob = [`|Delta| ${L.delta != null ? Math.abs(L.delta).toFixed(2) : 'n/a'}`, `spread ${L.spreadPct != null ? L.spreadPct.toFixed(2) + '%' : 'n/a'}`];
+  if (L.ivUsed != null && iv.atmIv) ob.push(`IV ${(L.ivUsed * 100).toFixed(1)}% vs ATM ${(iv.atmIv * 100).toFixed(1)}%`);
+  if (L.thetaBurn != null) ob.push(`theta burn ${(L.thetaBurn * 100).toFixed(0)}% of premium per day`);
+  out.push(`${c.K} ${c.side} (${c.label}) ranks highest on the risk-adjusted comparison: ${ob.join(', ')}.`);
+  if (p && p.ok) out.push(`Risk is defined before entry: stop ${inr(p.sl.premium)} (${p.sl.basis}); Target 1 ${inr(p.targets[0].premium)}${p.targets[1] ? ', Target 2 ' + inr(p.targets[1].premium) : ''}; R:R 1 : ${p.rr.main.toFixed(2)} to ${p.rr.mainIs}.`);
+  if (c.softFails.length) out.push('Cautions: ' + c.softFails.map(g => g.msg).join('; ') + '.');
+  return out;
+}
+
+function explainNoTrade(ref, ctx, cands) {
+  const { regime, dirE, sr, cfg, dq, S, EM } = ctx, r = [];
+  if (/INSUFFICIENT/.test(regime.regime)) r.push(`Missing critical data: ${regime.why.join('; ')}.`);
+  if (/RANGE/.test(regime.regime)) r.push(`Range-bound market: ${regime.why.join('; ')}.`);
+  if (/UNSTABLE/.test(regime.regime)) r.push(`High-volatility / unstable conditions: ${regime.why.join('; ')}.`);
+  if (dirE.conflict >= cfg.conflictCap) r.push(`Conflicting evidence: ${dirE.oppose} of ${dirE.agree + dirE.oppose} directional signals oppose the lead signal (${Object.entries(dirE.signals).filter(e => e[1] != null).map(e => `${e[0]} ${e[1].toFixed(2)}`).join(', ')}).`);
+  const rrs = ['CE', 'PE'].map(sd => cands[sd][0]).filter(c => c && c.plan && c.plan.ok).map(c => `${c.K} ${c.side} 1 : ${c.plan.rr.main.toFixed(2)}`);
+  if (rrs.length && ref && ref.plan && ref.plan.ok && ref.plan.rr.main < cfg.minRR) r.push(`Poor risk/reward: best setups offer ${rrs.join(' and ')} against a minimum of 1 : ${cfg.minRR}.`);
+  for (const sd of ['CE', 'PE']) { const c = cands[sd][0]; if (c && c.plan && !c.plan.ok) r.push(`${c.K} ${c.side}: ${c.plan.reason}.`); }
+  if (ctx.bk.up.state !== 'confirmed' && ctx.bk.down.state !== 'confirmed') r.push('No breakout confirmation in either direction.');
+  if (ctx.volume.label.startsWith('Weak')) r.push('Weak volume confirmation of the direction implied by OI flow.');
+  if (ref && ref.hardFails.length) r.push(`Highest-ranked setup (${ref.K} ${ref.side}, ${ref.score}/100) fails: ${ref.hardFails.map(g => g.msg).join('; ')}.`);
+  else if (ref) r.push(`Highest Signal Quality is ${ref.score}/100 (${ref.signal.toLowerCase()}), below the ${cfg.thresholds.watch} needed even for a watch-list entry.`);
+  if (dq.score < cfg.minDQ) r.push(`Data quality ${dq.score}% is below the ${cfg.minDQ}% minimum.`);
+  return r;
+}
+
+function triggersFor(ctx) {
+  const { sr, bk } = ctx, t = [], zl2 = zlab;
+  const r1 = sr.resistance[0], s1 = sr.support[0];
+  if (r1) t.push(`Bullish: spot holding above ${r1.high} with Call OI at ${r1.peak} unwinding (now ${U.isNum(r1.chgOi) ? sgn(r1.chgOi) : 'n/a'}) and CE volume expanding.`);
+  if (s1) t.push(`Bearish: spot holding below ${s1.low} with Put OI at ${s1.peak} unwinding (now ${U.isNum(s1.chgOi) ? sgn(s1.chgOi) : 'n/a'}) and PE volume expanding.`);
+  t.push('Re-upload a fresh option chain after a decisive move; a second snapshot also enables IV and OI trend checks.');
+  return t;
+}
+
+function decide(ctx, cands) {
+  const { cfg } = ctx, thr = cfg.thresholds;
+  const all = [...cands.CE, ...cands.PE].filter(c => c.exists).sort((a, b) => b.score - a.score);
+  const passing = all.filter(c => c.hardFails.length === 0);
+  const top = passing[0] || null, ref = top || all[0] || null;
+  let action = 'NO TRADE', cls = 'NO TRADE', chosen = null;
+  if (top) {
+    const sc = top.score;
+    if (sc >= thr.trade) action = top.softFails.length ? 'WATCH' : 'BUY';
+    else if (sc >= thr.watch) action = 'WATCH';
+    if (action !== 'NO TRADE') { chosen = top; cls = top.softFails.length && sc >= thr.trade ? 'WATCH' : top.signal; }
+  }
+  const label = action === 'NO TRADE' ? 'NO TRADE' : `${action} ${chosen.side === 'CE' ? 'CALL' : 'PUT'}`;
+  let alt = null;
+  if (chosen) alt = passing.find(c => c !== chosen && c.score >= thr.weak && !(c.side === chosen.side && c.K === chosen.K)) || null;
+  return {
+    action: label, kind: action, classification: cls, chosen, reference: ref, alternative: alt,
+    score: chosen ? chosen.score : (ref ? ref.score : null),
+    reasons: chosen ? explainTrade(chosen, ctx) : [],
+    noTradeReasons: action === 'NO TRADE' ? explainNoTrade(ref, ctx, cands) : [],
+    triggers: triggersFor(ctx),
+    banner: action === 'NO TRADE' ? 'NO TRADE — WAIT FOR CONFIRMATION' : action === 'WATCH' ? 'WATCH — SETUP NOT YET CONFIRMED' : 'ACTIONABLE SETUP',
+    staying: action === 'NO TRADE' ? 'Staying out is currently the highest-quality decision.' : null,
+    referenceReasons: (action === 'NO TRADE' && ref) ? [] : []
+  };
+}
+
+/* =====================  PIPELINE  ===================== */
+function detectLot(strikes, atmK, step) {
+  const q = []; for (const s of strikes) if (Math.abs(s.strike - atmK) <= 10 * step) for (const sd of ['CE', 'PE']) { [s[sd].bidQty, s[sd].askQty].forEach(v => { if (U.isNum(v) && v > 0 && Number.isInteger(v)) q.push(v); }); }
+  if (q.length < 6) return null;
+  const g = (a, b) => b ? g(b, a % b) : a;
+  const lot = q.reduce((a, b) => g(a, b));
+  return lot >= 5 && lot <= 2000 ? lot : null;
+}
+
+function makeSteps(rows, userOpts, st) {
+  const cfg = U.merge(OCI.DEFAULTS, userOpts || {});
+  st.cfg = cfg;
+  return [
+    ['Reading option chain...', () => {
+      st.layout = OCI.ingest.detectLayout(rows);
+      st.meta = OCI.ingest.scanMeta(rows, st.layout.headerRow);
+      const b = OCI.ingest.buildStrikes(rows, st.layout);
+      st.raw = b.strikes; st.issues = b.issues;
+      if (b.strikes.length < 5) throw new Error('Fewer than 5 valid strike rows were found; this does not look like a usable option chain.');
+    }],
+    ['Validating market data...', () => {
+      st.v = OCI.ingest.validateAndClean(st.raw, st.layout, st.issues);
+      st.strikes = st.v.strikes; st.step = st.v.step;
+      st.prelim = OCI.ingest.prelimATM(st.strikes);
+      st.dq = OCI.ingest.dataQuality(st.strikes, st.layout, st.v, cfg, st.prelim, st.step, st.issues);
+      if (st.layout.duplicates.length) st.issues.push({ level: 'info', code: 'dup_cols', count: st.layout.duplicates.length, msg: 'Duplicate column(s) ignored: ' + st.layout.duplicates.join(', ') });
+    }],
+    ['Calculating OI structure...', () => {
+      const A = OCI.analytics, strikes = st.strikes;
+      // identity: file name > metadata > user input
+      const exParts = cfg.expiry ? OCI.ingest.parseExpiryString(cfg.expiry) : (st.meta.expiry || OCI.ingest.parseExpiryString(userOpts && userOpts.filename));
+      st.underlying = cfg.underlying || st.meta.underlying || OCI.ingest.guessUnderlying(userOpts && userOpts.filename) || 'UNKNOWN';
+      st.asOf = cfg.asOf ? new Date(cfg.asOf) : new Date();
+      st.tctx = A.timeContext(exParts, st.asOf);
+      // spot
+      const est = A.estimateSpot(strikes, st.tctx, cfg);
+      st.spotEst = est;
+      if (cfg.spotOverride > 0) { st.S = +cfg.spotOverride; st.spotSource = 'Actual (entered by user)'; st.spotActual = true; }
+      else if (st.meta.spot > 0) { st.S = st.meta.spot; st.spotSource = 'Actual (read from file)'; st.spotActual = true; }
+      else if (est) { st.S = est.spot; st.spotSource = 'Estimated Synthetic Spot (put-call parity)'; st.spotActual = false; }
+      else throw new Error('Spot price could not be determined: the file has no spot and too few strikes with two-sided quotes on both CE and PE for a parity estimate. Enter the spot manually in Model settings.');
+      // ATM
+      let atm = strikes[0].strike; for (const s of strikes) if (Math.abs(s.strike - st.S) < Math.abs(atm - st.S) - 1e-9) atm = s.strike;
+      st.atmK = atm;
+      st.lotSize = cfg.lotSize || detectLot(strikes, atm, st.step);
+      st.dq = OCI.ingest.dataQuality(strikes, st.layout, st.v, cfg, atm, st.step, st.issues);
+      const base = { S: st.S, atmK: atm, step: st.step, cfg, tctx: st.tctx, spotActual: st.spotActual };
+      A.enrichLegs(strikes, base);
+      st.win = A.nearWindow(strikes, atm, st.step, cfg.nearSteps);
+      st.iv = A.ivEngine(strikes, st.win, base);
+      if (st.iv.mismatchCount) st.issues.push({ level: 'info', code: 'iv_mismatch', count: st.iv.mismatchCount, msg: `${st.iv.mismatchCount} near-ATM IV value(s) differ by more than 6 vol points from the IV implied by the quoted price (file IV is used)` });
+      st.dq.notes = [];
+      if (st.lotSize) st.dq.notes.push(`Lot size inferred from bid/ask quantities: ${st.lotSize}`);
+      st.dq.notes.push('"-" in OI, change-in-OI and volume columns is treated as nil (NSE convention); "-" in price, IV and Greek columns is treated as missing');
+      // expected move (1 sigma over remaining life) with straddle cross-check
+      const atmRec = strikes.find(s => s.strike === atm);
+      const straddle = (atmRec.CE.mid != null && atmRec.PE.mid != null) ? atmRec.CE.mid + atmRec.PE.mid : null;
+      let EM = null, emSource = null;
+      if (st.iv.atmIv && st.tctx.known) { EM = st.S * st.iv.atmIv * Math.sqrt(st.tctx.T); emSource = 'ATM IV x sqrt(time)'; }
+      else if (straddle) { EM = 1.25 * straddle; emSource = 'ATM straddle x 1.25'; }
+      else { EM = 4 * st.step; emSource = 'fallback (4 strike steps): IV, expiry and straddle unavailable'; }
+      st.EM = EM; st.emSource = emSource; st.straddle = straddle;
+      st.ctx = Object.assign({}, base, { EM, win: st.win, lotSize: st.lotSize, spotSource: st.spotSource, iv: st.iv, dq: st.dq, strikes });
+      st.maxPain = A.maxPain(strikes);
+      st.pcr = A.pcrEngine(strikes, st.win, cfg);
+      st.sr = A.srEngine(strikes, st.ctx);
+      st.flow = A.flowEngine(strikes, st.win, st.ctx);
+      st.mom = A.momentumEngine(strikes, st.win, st.ctx);
+      st.dirE = OCI.signals.directionEngine(st.ctx, st.flow, st.pcr, st.sr, st.mom);
+      st.ctx.D = st.dirE.D;
+      st.volume = A.volumeEngine(strikes, st.win, st.ctx, st.flow);
+      Object.assign(st.ctx, { sr: st.sr, pcr: st.pcr, flow: st.flow, mom: st.mom, dirE: st.dirE, volume: st.volume });
+    }],
+    ['Analysing volatility...', () => {
+      st.bk = OCI.signals.breakoutEngine(st.ctx, st.sr, st.strikes, st.win);
+      st.regime = OCI.signals.regimeEngine(st.ctx, st.dirE, st.iv, st.sr, st.bk, st.dq, st.win);
+      Object.assign(st.ctx, { bk: st.bk, regime: st.regime });
+    }],
+    ['Ranking trade setups...', () => { st.cands = OCI.signals.buildCandidates(st.ctx, st.strikes); }],
+    ['Calculating risk/reward...', () => {
+      for (const sd of ['CE', 'PE']) for (const c of st.cands[sd]) if (c.plan && c.plan.ok) c.plan.maxLossText = c.plan.riskPerLot ? `₹${Math.round(c.plan.riskPerLot * (c.plan.lots || 1)).toLocaleString('en-IN')} for ${c.plan.lots || 1} lot(s) of ${c.plan.lotSize}` : 'lot size not detected';
+    }],
+    ['Generating final decision...', () => {
+      st.decision = decide(st.ctx, st.cands);
+      // breakout checks that need candidates (liquidity & R:R)
+      for (const k of ['up', 'down']) {
+        const bkk = st.bk[k], best = st.cands[bkk.dir > 0 ? 'CE' : 'PE'][0];
+        if (best) { bkk.checks.push({ id: 'liq', name: 'Liquidity', pass: best.leg.spreadPct != null ? best.leg.spreadPct <= cfg.maxSpreadPct : null, detail: best.leg.spreadPct != null ? `${best.K} spread ${best.leg.spreadPct.toFixed(2)}%` : 'n/a' });
+          bkk.checks.push({ id: 'rr', name: 'Risk / reward', pass: best.plan && best.plan.ok ? best.plan.rr.main >= cfg.minRR : false, detail: best.plan && best.plan.ok ? `1 : ${best.plan.rr.main.toFixed(2)}` : (best.plan ? best.plan.reason : 'n/a') }); }
+      }
+    }]
+  ];
+}
+function assemble(st) {
+  return {
+    version: OCI.version, generatedAt: st.asOf, cfg: st.cfg, filename: (st.cfg && st.cfg.filename) || null,
+    underlying: st.underlying, spot: st.S, spotSource: st.spotSource, spotActual: st.spotActual, spotEst: st.spotEst,
+    expiry: st.tctx.known ? st.tctx.expiry : null, tctx: st.tctx, dte: st.tctx.known ? st.tctx.dte : null,
+    atm: st.atmK, step: st.step, lotSize: st.lotSize, expectedMove: st.EM, emSource: st.emSource, straddle: st.straddle,
+    dataQuality: st.dq, layout: st.layout, strikes: st.strikes, maxPain: st.maxPain, pcr: st.pcr, iv: st.iv, flow: st.flow, momentum: st.mom,
+    volume: st.volume, sr: st.sr, direction: st.dirE, regime: st.regime, breakout: st.bk, candidates: st.cands, decision: st.decision, parity: st.v.parity
+  };
+}
+OCI.analyze = function (rows, opts, onStage) {
+  const st = {}, steps = makeSteps(rows, opts, st);
+  steps.forEach(([label, fn], i) => { if (onStage) onStage(i, label, steps.length); fn(); });
+  return assemble(st);
+};
+OCI.analyzeAsync = async function (rows, opts, onStage) {
+  const st = {}, steps = makeSteps(rows, opts, st), wait = ms => new Promise(r => setTimeout(r, ms));
+  for (let i = 0; i < steps.length; i++) { if (onStage) onStage(i, steps[i][0], steps.length); await wait(140); steps[i][1](); }
+  return assemble(st);
+};
+OCI.analyzeText = (text, filename, opts) => OCI.analyze(OCI.ingest.parseCSV(text), Object.assign({ filename }, opts || {}));
+OCI.STAGES = ['Reading option chain...', 'Validating market data...', 'Calculating OI structure...', 'Analysing volatility...', 'Ranking trade setups...', 'Calculating risk/reward...', 'Generating final decision...'];
+OCI.fmt = { inr, nIN, sgn, zlab };
+
+/* =====================  BACKTESTING SCAFFOLD  =====================
+   Intended flow:  historical snapshots -> signal generation -> subsequent price movement -> trade outcome -> statistics.
+   snapshot(result)            compact, serialisable record of the signal (store one per uploaded file)
+   evaluate(signal, nextResult) replays the signal against a LATER snapshot of the same expiry and returns an R-multiple
+   stats(outcomes)             win rate, avg win/loss, profit factor, expectancy, max drawdown, avg R:R, false-signal rate,
+                               score-vs-outcome buckets, performance by regime
+   No accuracy claim is made until this has been run over a real, sufficiently large history.                      */
+OCI.backtest = {
+  snapshot(res) {
+    const d = res.decision, c = d.chosen;
+    return { t: res.generatedAt, underlying: res.underlying, expiry: res.expiry, spot: res.spot, regime: res.regime.regime,
+      action: d.action, score: d.score, side: c ? c.side : null, strike: c ? c.K : null, entry: c && c.plan.ok ? c.plan.entry.ref : null,
+      sl: c && c.plan.ok ? c.plan.sl.premium : null, slU: c && c.plan.ok ? c.plan.sl.underlying : null,
+      targets: c && c.plan.ok ? c.plan.targets.map(t => ({ p: t.premium, u: t.underlying })) : [], rr: c && c.plan.ok ? c.plan.rr.main : null };
+  },
+  evaluate(sig, next) {
+    if (!sig.side) return null;
+    const rec = next.strikes.find(s => s.strike === sig.strike); if (!rec) return null;
+    const L = rec[sig.side], px = L.px ?? L.mid; if (px == null) return null;
+    const risk = sig.entry - sig.sl, pnl = px - sig.entry;
+    const hitSL = (sig.side === 'CE' ? next.spot <= sig.slU : next.spot >= sig.slU) || px <= sig.sl;
+    const hitT = sig.targets.filter(t => px >= t.p).length;
+    return { score: sig.score, regime: sig.regime, rr: sig.rr, r: risk > 0 ? Math.max(-1, pnl / risk) : null, hitSL, targetsHit: hitT, pnl };
+  },
+  stats(outcomes) {
+    const o = outcomes.filter(x => x && x.r != null); if (!o.length) return null;
+    const wins = o.filter(x => x.r > 0), loss = o.filter(x => x.r <= 0);
+    const gw = U.sum(wins.map(x => x.r)), gl = Math.abs(U.sum(loss.map(x => x.r)));
+    let eq = 0, peak = 0, dd = 0; o.forEach(x => { eq += x.r; peak = Math.max(peak, eq); dd = Math.max(dd, peak - eq); });
+    const bucket = (lo, hi) => { const b = o.filter(x => x.score >= lo && x.score < hi); return { range: `${lo}-${hi - 1}`, n: b.length, avgR: b.length ? U.mean(b.map(x => x.r)) : null }; };
+    const regimes = {}; o.forEach(x => { (regimes[x.regime] = regimes[x.regime] || []).push(x.r); });
+    return { n: o.length, winRate: wins.length / o.length, avgWin: wins.length ? gw / wins.length : null, avgLoss: loss.length ? -gl / loss.length : null,
+      profitFactor: gl > 0 ? gw / gl : null, expectancy: U.mean(o.map(x => x.r)), maxDrawdownR: dd, avgRR: U.mean(o.filter(x => x.rr != null).map(x => x.rr)),
+      falseSignalRate: o.filter(x => x.hitSL && x.targetsHit === 0).length / o.length,
+      byScore: [bucket(0, 65), bucket(65, 75), bucket(75, 85), bucket(85, 101)],
+      byRegime: Object.fromEntries(Object.entries(regimes).map(([k, v]) => [k, { n: v.length, avgR: U.mean(v) }])) };
+  }
+};
+if (typeof module !== 'undefined' && module.exports) module.exports = OCI;
+root.OCI = OCI;
+})(typeof window !== 'undefined' ? window : globalThis);
+</script>
+<script>const SAMPLE_NAME = "option-chain-ED-NIFTY-06-Oct-2026.csv"; const SAMPLE_CSV = "CALLS,NO TEXT,PUTS\r\nNO TEXT,OI,CHNG IN OI,VOLUME,IV,LTP,CHNG,BID QTY,BID,ASK,ASK QTY,STRIKE,BID QTY,BID,ASK,ASK QTY,CHNG,LTP,IV,VOLUME,CHNG IN OI,OI,NO TEXT\r\n,-,-,-,-,-,-,780,\"2,430.60\",\"2,576.25\",780,\"20,050.00\",\"50,245\",0.45,0.50,\"63,440\",-0.20,0.45,77.05,\"23,260\",\"2,724\",\"3,549\",\r\n,-,-,-,-,-,-,780,\"2,378.50\",\"2,647.65\",780,\"20,100.00\",\"21,320\",0.45,0.50,\"38,740\",-0.45,0.45,74.75,\"12,055\",\"2,110\",\"2,468\",\r\n,-,-,-,-,-,-,780,\"2,332.90\",\"2,469.30\",780,\"20,150.00\",\"4,810\",0.45,0.50,\"1,820\",-0.55,0.45,74.05,\"2,305\",548,643,\r\n,-,-,-,-,-,-,780,\"2,254.20\",\"2,488.15\",780,\"20,200.00\",\"9,490\",0.45,0.50,\"16,510\",-0.60,0.45,73.27,\"11,342\",\"1,324\",\"1,450\",\r\n,-,-,-,-,-,-,780,\"2,232.00\",\"2,369.10\",780,\"20,250.00\",\"1,690\",0.45,0.50,\"1,105\",-0.60,0.45,71.07,\"4,354\",726,865,\r\n,-,-,-,-,-,-,780,\"2,179.40\",\"2,323.15\",780,\"20,300.00\",\"4,810\",0.40,0.45,\"12,220\",-0.65,0.45,70.26,\"4,536\",490,944,\r\n,-,-,-,-,-,-,780,\"2,134.00\",\"2,271.30\",780,\"20,350.00\",\"4,810\",0.40,0.45,\"4,030\",-0.75,0.45,68.75,\"9,853\",759,850,\r\n,-,-,-,-,-,-,780,\"2,011.85\",\"2,314.15\",780,\"20,400.00\",\"15,860\",0.50,0.55,\"31,915\",-0.70,0.50,67.86,\"15,995\",\"1,194\",\"1,549\",\r\n,-,-,-,-,-,-,780,\"2,004.20\",\"2,181.25\",780,\"20,450.00\",\"19,500\",0.50,0.55,\"57,460\",-0.75,0.50,66.35,\"11,900\",905,\"1,128\",\r\n,-,-,-,-,-,-,780,\"1,987.45\",\"2,121.20\",780,\"20,500.00\",\"8,27,450\",0.40,0.45,\"4,19,835\",-0.90,0.40,63.62,\"1,68,181\",\"-25,186\",\"83,074\",\r\n,-,-,-,-,-,-,780,\"1,908.00\",\"2,076.65\",780,\"20,550.00\",\"52,195\",0.45,0.50,\"35,360\",-0.70,0.50,63.86,\"24,970\",-239,\"2,587\",\r\n,-,-,-,-,-,-,780,\"1,854.45\",\"2,026.70\",780,\"20,600.00\",\"1,81,285\",0.45,0.50,\"1,71,470\",-0.85,0.45,61.82,\"1,48,756\",\"-1,071\",\"17,122\",\r\n,-,-,-,-,-,-,780,\"1,797.00\",\"1,972.00\",780,\"20,650.00\",\"31,330\",0.55,0.60,\"27,625\",-0.80,0.60,60.82,\"12,843\",551,\"1,862\",\r\n,-,-,-,-,-,-,780,\"1,780.50\",\"1,970.80\",780,\"20,700.00\",\"1,03,350\",0.50,0.55,\"59,930\",-1.05,0.50,59.31,\"45,364\",\"-2,768\",\"5,279\",\r\n,-,-,-,-,-,-,780,\"1,718.70\",\"1,891.90\",780,\"20,750.00\",\"78,910\",0.60,0.65,\"70,395\",-1.00,0.60,58.25,\"18,403\",830,\"2,319\",\r\n,-,-,-,-,-,-,780,\"1,686.45\",\"1,831.45\",780,\"20,800.00\",\"4,35,695\",0.50,0.55,\"3,45,800\",-1.20,0.50,56.27,\"1,51,723\",\"-29,579\",\"18,713\",\r\n,-,-,-,-,-,-,780,\"1,636.70\",\"1,765.85\",780,\"20,850.00\",\"42,575\",0.60,0.65,\"23,855\",-1.10,0.65,55.61,\"13,529\",\"1,307\",\"3,025\",\r\n,-,-,-,-,-,-,780,\"1,572.35\",\"1,716.25\",780,\"20,900.00\",\"1,02,310\",0.65,0.70,\"39,715\",-1.10,0.65,54.07,\"42,952\",\"-1,278\",\"7,314\",\r\n,-,-,-,-,-,-,780,\"1,499.00\",\"1,667.30\",780,\"20,950.00\",\"57,460\",0.70,0.75,\"73,125\",-1.15,0.70,52.54,\"46,639\",\"2,902\",\"6,043\",\r\n,147,87,149,64.79,\"1,547.00\",98.45,65,\"1,529.20\",\"1,542.40\",65,\"21,000.00\",\"5,06,025\",0.75,0.80,\"2,13,655\",-1.25,0.75,51.37,\"4,17,965\",\"-19,495\",\"68,387\",\r\n,-,-,-,-,-,-,\"2,535\",\"1,408.40\",\"1,569.95\",\"2,535\",\"21,050.00\",\"51,090\",0.80,0.85,\"50,180\",-1.25,0.85,50.16,\"39,469\",630,\"3,838\",\r\n,-,-,-,-,-,-,\"2,535\",\"1,394.15\",\"1,510.90\",\"2,535\",\"21,100.00\",\"2,93,280\",0.85,0.90,\"94,900\",-1.20,0.90,49.23,\"1,21,800\",\"5,622\",\"17,862\",\r\n,-,-,-,-,-,-,\"2,535\",\"1,320.00\",\"1,466.00\",\"2,535\",\"21,150.00\",\"89,570\",0.90,0.95,\"72,605\",-1.35,0.95,47.66,\"39,650\",\"1,883\",\"6,235\",\r\n,-,-,2,69.18,\"1,359.70\",\"-1,619.95\",\"2,535\",\"1,296.45\",\"1,385.60\",845,\"21,200.00\",\"2,01,435\",0.90,0.95,\"1,50,280\",-1.45,0.95,46.36,\"3,47,550\",\"1,894\",\"32,141\",\r\n,-,-,-,-,-,-,\"2,535\",\"1,241.40\",\"1,368.55\",\"2,535\",\"21,250.00\",\"1,15,310\",0.95,1.00,\"1,15,115\",-1.80,1.00,44.77,\"88,281\",543,\"11,016\",\r\n,-,-,-,-,-,-,\"2,535\",\"1,195.80\",\"1,303.55\",\"2,535\",\"21,300.00\",\"1,25,060\",1.00,1.05,\"1,02,960\",-1.95,1.05,43.44,\"4,06,057\",\"-13,440\",\"29,041\",\r\n,-,-,-,-,-,-,\"2,535\",\"1,125.65\",\"1,261.95\",\"2,535\",\"21,350.00\",\"1,18,625\",1.05,1.10,\"1,12,580\",-2.20,1.05,42.08,\"1,81,410\",-794,\"13,050\",\r\n,20,-,10,-,\"1,149.55\",77.60,65,\"1,131.55\",\"1,146.20\",65,\"21,400.00\",\"3,91,755\",1.10,1.15,\"2,28,540\",-2.45,1.10,40.70,\"6,13,694\",\"3,733\",\"52,756\",\r\n,57,51,103,-,\"1,094.60\",211.05,130,\"1,074.80\",\"1,111.35\",65,\"21,450.00\",\"1,69,780\",1.25,1.30,\"1,39,750\",-2.65,1.30,39.49,\"2,34,518\",\"2,647\",\"14,856\",\r\n,273,-32,495,57.03,\"1,052.80\",92.40,390,\"1,036.75\",\"1,044.65\",65,\"21,500.00\",\"4,75,215\",1.45,1.50,\"7,17,795\",-3.05,1.45,38.59,\"13,38,818\",\"75,881\",\"2,23,839\",\r\n,6,-,-,29.21,-,-,\"2,535\",947.55,\"1,036.75\",\"2,535\",\"21,550.00\",\"1,32,340\",1.50,1.55,\"1,67,310\",-3.35,1.50,37.41,\"5,53,497\",\"11,648\",\"28,148\",\r\n,74,-1,20,32.36,946.00,97.45,65,931.80,955.55,65,\"21,600.00\",\"2,23,860\",1.65,1.70,\"3,70,695\",-3.70,1.70,36.02,\"14,35,880\",\"31,958\",\"78,941\",\r\n,220,43,83,-,862.95,41.50,195,882.75,911.35,845,\"21,650.00\",\"1,36,565\",1.80,1.85,\"1,33,380\",-4.25,1.80,34.72,\"12,91,430\",\"12,598\",\"29,969\",\r\n,212,-,118,47.41,856.65,86.70,65,838.35,846.80,195,\"21,700.00\",\"3,30,525\",1.95,2.00,\"2,89,510\",-4.95,1.95,33.37,\"21,26,233\",\"26,735\",\"89,322\",\r\n,134,21,160,48.39,798.55,82.25,130,788.80,798.10,260,\"21,750.00\",\"1,64,515\",2.15,2.20,\"1,12,515\",-5.75,2.20,32.07,\"17,49,654\",\"15,236\",\"39,593\",\r\n,605,-37,938,40.84,752.35,76.35,195,741.65,745.30,65,\"21,800.00\",\"42,055\",2.50,2.55,\"1,44,040\",-6.70,2.50,30.98,\"23,26,597\",\"53,054\",\"1,37,941\",\r\n,393,25,288,35.61,692.95,66.90,325,689.80,694.75,130,\"21,850.00\",\"2,05,920\",2.85,2.90,\"98,930\",-8.25,2.90,29.93,\"14,28,538\",\"17,473\",\"48,229\",\r\n,593,-6,\"1,357\",33.83,659.90,84.15,585,640.55,645.75,65,\"21,900.00\",\"28,340\",3.45,3.50,\"23,660\",-10.05,3.50,29.01,\"15,03,599\",\"43,681\",\"1,17,102\",\r\n,516,82,\"1,475\",32.93,601.45,69.40,195,595.10,597.55,520,\"21,950.00\",\"10,010\",4.15,4.20,\"18,070\",-12.15,4.20,27.77,\"11,80,722\",\"35,801\",\"64,601\",\r\n,\"7,785\",\"-4,152\",\"48,648\",33.62,543.90,68.50,65,545.05,546.90,130,\"22,000.00\",\"10,790\",5.15,5.20,\"18,005\",-14.65,5.20,26.95,\"31,12,972\",\"64,376\",\"2,19,122\",\r\n,894,116,\"3,509\",29.22,498.95,63.90,325,496.55,499.00,715,\"22,050.00\",\"1,235\",6.25,6.30,\"20,475\",-18.00,6.25,25.90,\"14,91,875\",\"34,864\",\"62,634\",\r\n,\"2,979\",-604,\"18,457\",30.09,448.00,57.80,130,448.15,449.80,325,\"22,100.00\",\"4,810\",7.90,7.95,\"5,590\",-21.55,7.95,24.91,\"26,26,267\",\"56,708\",\"1,14,190\",\r\n,\"2,206\",453,\"12,024\",28.62,402.15,54.45,390,401.30,402.70,130,\"22,150.00\",585,10.20,10.25,\"2,405\",-25.95,10.25,24.04,\"20,95,722\",\"36,943\",\"77,502\",\r\n,\"9,821\",\"-3,118\",\"1,09,864\",27.03,353.30,47.95,520,352.80,353.80,325,\"22,200.00\",\"1,950\",13.50,13.55,\"5,200\",-30.95,13.50,23.24,\"39,80,390\",\"67,368\",\"1,67,450\",\r\n,\"5,853\",\"-1,329\",\"80,589\",25.17,307.65,41.45,130,308.60,309.35,130,\"22,250.00\",\"3,965\",17.35,17.45,\"4,810\",-37.00,17.40,22.27,\"29,28,960\",\"61,922\",\"91,728\",\r\n,\"22,523\",\"-26,609\",\"4,70,109\",24.27,264.65,36.70,585,263.90,264.65,780,\"22,300.00\",910,23.20,23.30,\"1,495\",-42.70,23.30,21.60,\"58,13,126\",\"83,011\",\"2,08,727\",\r\n,\"12,932\",\"-3,703\",\"4,32,469\",23.03,220.20,25.50,195,220.20,220.80,195,\"22,350.00\",\"1,430\",30.35,30.45,715,-51.05,30.35,20.70,\"42,52,991\",\"71,771\",\"1,08,078\",\r\n,\"52,618\",\"-2,210\",\"22,52,532\",22.10,181.15,19.65,650,181.00,181.30,65,\"22,400.00\",\"2,015\",40.00,40.10,325,-59.15,40.15,19.87,\"89,84,509\",\"2,07,755\",\"2,72,919\",\r\n,\"45,821\",\"10,441\",\"30,91,505\",20.99,143.00,10.55,\"1,040\",142.95,143.30,650,\"22,450.00\",715,53.25,53.40,\"1,365\",-66.90,53.40,19.09,\"77,23,472\",\"1,43,581\",\"1,75,798\",\r\n,\"1,72,110\",\"66,165\",\"87,57,100\",20.06,109.60,2.70,390,109.60,109.85,130,\"22,500.00\",130,69.85,69.95,\"1,430\",-74.20,69.90,18.38,\"1,20,91,082\",\"2,28,566\",\"3,04,193\",\r\n,\"1,74,294\",\"1,07,245\",\"75,33,714\",19.23,80.10,-5.35,325,80.15,80.35,\"1,040\",\"22,550.00\",650,90.65,90.85,325,-81.55,90.80,17.53,\"65,86,275\",\"1,33,272\",\"1,49,240\",\r\n,\"2,72,616\",\"1,78,933\",\"1,09,04,655\",18.67,57.65,-9.65,\"3,965\",57.60,57.75,585,\"22,600.00\",845,116.05,116.35,780,-88.30,116.25,16.85,\"58,89,187\",\"1,00,457\",\"1,39,121\",\r\n,\"1,69,223\",\"70,861\",\"56,96,444\",18.11,38.90,-12.80,325,38.90,39.00,390,\"22,650.00\",520,148.10,148.45,585,-92.75,148.05,16.41,\"16,92,615\",\"19,464\",\"30,265\",\r\n,\"2,42,247\",\"93,493\",\"67,41,710\",18.03,25.90,-14.85,\"1,885\",25.85,25.90,975,\"22,700.00\",65,186.20,186.35,260,-93.90,186.20,15.52,\"13,85,743\",\"5,383\",\"45,921\",\r\n,\"1,26,986\",\"64,754\",\"36,33,462\",17.85,16.80,-15.20,\"2,665\",16.80,16.90,\"2,340\",\"22,750.00\",130,226.00,226.20,455,-90.15,227.65,14.87,\"3,20,540\",\"1,037\",\"12,922\",\r\n,\"2,43,125\",\"1,05,539\",\"48,04,982\",17.91,10.75,-14.00,\"4,745\",10.75,10.85,\"3,445\",\"22,800.00\",195,270.45,271.05,130,-92.50,271.15,13.70,\"3,31,011\",\"-3,325\",\"24,496\",\r\n,\"1,06,069\",\"54,475\",\"24,06,931\",18.26,7.20,-12.35,\"6,695\",7.20,7.25,\"5,590\",\"22,850.00\",715,315.30,316.40,130,-91.35,315.30,10.32,\"50,741\",\"-1,495\",\"4,060\",\r\n,\"1,78,310\",\"69,665\",\"26,13,131\",18.74,4.85,-10.40,\"9,620\",4.85,4.90,\"14,625\",\"22,900.00\",130,364.40,365.65,390,-84.00,366.40,-,\"64,102\",\"-3,600\",\"9,292\",\r\n,\"84,132\",\"35,419\",\"11,33,370\",19.57,3.70,-8.60,\"13,195\",3.70,3.75,\"5,980\",\"22,950.00\",130,411.35,412.75,130,-87.60,415.00,-,\"12,598\",\"-1,142\",\"5,794\",\r\n,\"2,52,150\",\"40,385\",\"23,45,082\",20.79,3.15,-7.15,\"29,185\",3.10,3.15,\"28,860\",\"23,000.00\",715,461.25,462.95,65,-83.90,465.35,-,\"62,082\",\"-6,741\",\"18,856\",\r\n,\"72,876\",\"19,217\",\"10,83,386\",21.67,2.45,-5.85,\"72,670\",2.45,2.50,\"90,090\",\"23,050.00\",65,510.85,512.95,65,-89.40,510.00,-,\"11,634\",\"-2,873\",\"4,331\",\r\n,\"1,30,536\",\"35,877\",\"14,76,719\",22.63,2.10,-4.95,\"44,460\",2.05,2.10,\"1,65,815\",\"23,100.00\",130,559.95,562.10,65,-80.40,563.00,-,\"16,965\",\"-8,817\",\"7,847\",\r\n,\"45,938\",\"7,253\",\"8,30,106\",23.65,1.70,-4.30,\"2,67,930\",1.70,1.75,\"1,72,705\",\"23,150.00\",195,608.75,613.10,260,-81.55,604.10,-,\"1,494\",-450,\"1,534\",\r\n,\"1,31,860\",\"-13,917\",\"13,70,620\",24.72,1.50,-3.60,\"4,12,230\",1.45,1.50,\"3,96,435\",\"23,200.00\",130,659.65,662.65,390,-79.15,661.20,-,\"4,503\",\"-1,440\",\"5,696\",\r\n,\"45,990\",\"14,762\",\"5,41,664\",25.92,1.25,-3.10,\"1,74,265\",1.25,1.30,\"2,12,810\",\"23,250.00\",65,707.90,710.55,65,-73.75,710.00,-,\"1,101\",-259,\"3,897\",\r\n,\"1,09,877\",\"-15,320\",\"10,88,378\",26.88,1.20,-2.60,\"2,85,480\",1.20,1.25,\"3,77,065\",\"23,300.00\",455,756.85,760.90,65,-70.95,760.50,-,\"5,269\",\"-2,456\",\"13,001\",\r\n,\"35,143\",\"7,231\",\"4,39,157\",28.23,1.10,-2.05,\"1,11,215\",1.05,1.10,\"1,25,905\",\"23,350.00\",65,809.10,817.45,65,-92.65,806.25,-,831,-132,\"1,049\",\r\n,\"80,311\",\"1,962\",\"6,42,457\",29.35,1.00,-1.70,\"3,80,250\",1.00,1.05,\"3,34,360\",\"23,400.00\",65,855.95,864.60,390,-85.35,857.00,-,\"2,392\",\"-1,235\",\"7,249\",\r\n,\"26,016\",\"6,152\",\"2,61,136\",30.62,0.95,-1.50,\"1,87,590\",0.95,1.00,\"2,24,510\",\"23,450.00\",65,908.00,914.30,130,-83.45,901.05,-,837,-7,748,\r\n,\"2,18,185\",\"25,924\",\"11,64,306\",32.07,0.85,-1.40,\"6,97,580\",0.85,0.90,\"8,52,605\",\"23,500.00\",130,957.25,959.95,65,-85.70,959.00,-,\"10,250\",\"-2,253\",\"12,991\",\r\n,\"26,396\",\"1,353\",\"1,82,497\",33.04,0.80,-1.20,\"4,00,985\",0.80,0.85,\"1,73,420\",\"23,550.00\",130,\"1,006.80\",\"1,015.80\",260,-71.55,\"1,005.00\",-,353,-265,734,\r\n,\"63,492\",\"-6,513\",\"4,63,688\",34.46,0.75,-1.05,\"4,78,335\",0.75,0.80,\"5,33,260\",\"23,600.00\",260,\"1,057.35\",\"1,064.15\",325,-80.65,\"1,052.85\",-,\"1,346\",-575,\"1,906\",\r\n,\"19,285\",\"6,267\",\"1,02,377\",35.60,0.75,-0.90,\"1,11,540\",0.75,0.80,\"1,95,715\",\"23,650.00\",65,\"1,102.50\",\"1,118.35\",130,-76.55,\"1,110.05\",-,224,-112,869,\r\n,\"51,617\",\"-8,305\",\"2,35,395\",36.99,0.70,-0.85,\"3,29,225\",0.70,0.75,\"2,98,545\",\"23,700.00\",130,\"1,157.65\",\"1,164.60\",325,-94.25,\"1,143.45\",-,790,-391,932,\r\n,\"12,898\",\"-3,750\",\"62,434\",37.75,0.65,-0.80,\"80,860\",0.60,0.65,\"1,31,625\",\"23,750.00\",780,\"1,177.40\",\"1,217.05\",130,9.25,\"1,287.15\",93.35,6,-,69,\r\n,\"47,714\",\"-16,519\",\"2,91,522\",38.38,0.50,-0.85,\"16,35,595\",0.45,0.50,\"5,54,060\",\"23,800.00\",65,\"1,255.80\",\"1,263.00\",260,-72.15,\"1,257.00\",-,\"1,034\",-362,\"1,236\",\r\n,\"14,787\",-662,\"54,636\",38.83,0.45,-0.85,\"1,47,550\",0.45,0.50,\"1,93,050\",\"23,850.00\",130,\"1,300.25\",\"1,315.90\",65,-86.05,\"1,300.00\",-,13,-1,75,\r\n,\"32,643\",\"-10,537\",\"1,23,726\",40.13,0.40,-0.75,\"9,62,000\",0.40,0.45,\"4,46,745\",\"23,900.00\",65,\"1,358.00\",\"1,363.65\",195,-78.65,\"1,341.00\",-,371,-264,\"1,425\",\r\n,\"13,790\",-62,\"36,430\",41.90,0.45,-0.70,\"1,90,905\",0.40,0.45,\"2,80,670\",\"23,950.00\",65,\"1,403.70\",\"1,415.95\",65,-93.35,\"1,385.00\",-,22,-14,681,\r\n,\"96,188\",\"-74,566\",\"5,14,423\",43.65,0.45,-0.70,\"10,50,140\",0.45,0.50,\"7,13,700\",\"24,000.00\",65,\"1,456.35\",\"1,461.55\",65,-69.00,\"1,461.40\",57.15,\"2,995\",\"-2,347\",\"5,253\",\r\n,\"8,283\",-600,\"35,180\",43.99,0.40,-0.60,\"1,08,810\",0.35,0.40,\"1,11,995\",\"24,050.00\",780,\"1,483.55\",\"1,514.25\",65,-133.90,\"1,505.10\",48.80,10,-5,47,\r\n,\"25,650\",\"-12,301\",\"95,399\",45.26,0.40,-0.50,\"1,64,255\",0.40,0.45,\"5,39,630\",\"24,100.00\",65,\"1,555.10\",\"1,560.75\",65,-70.50,\"1,557.50\",-,400,-226,714,\r\n,\"5,705\",-793,\"17,897\",45.94,0.35,-0.45,\"1,03,220\",0.35,0.40,\"2,28,800\",\"24,150.00\",780,\"1,569.15\",\"1,629.55\",780,208.65,\"1,625.00\",80.36,4,-,33,\r\n,\"19,934\",\"-18,996\",\"99,415\",47.79,0.40,-0.35,\"1,64,775\",0.40,0.45,\"1,80,635\",\"24,200.00\",130,\"1,654.65\",\"1,670.75\",130,-85.40,\"1,645.60\",-,565,-459,907,\r\n,\"8,291\",-834,\"21,680\",48.43,0.30,-0.40,\"3,02,185\",0.30,0.35,\"1,85,900\",\"24,250.00\",780,\"1,683.45\",\"1,714.60\",65,-325.45,\"1,680.00\",-,51,-33,42,\r\n,\"30,363\",\"-13,525\",\"1,50,767\",48.98,0.35,-0.35,\"4,13,010\",0.30,0.35,\"9,27,160\",\"24,300.00\",65,\"1,750.10\",\"1,763.75\",130,-36.35,\"1,796.45\",-,558,-305,564,\r\n,\"12,975\",\"-1,020\",\"45,459\",49.40,0.25,-0.40,\"4,16,715\",0.25,0.30,\"1,64,905\",\"24,350.00\",780,\"1,755.90\",\"1,833.75\",65,205.00,\"1,785.00\",-,10,-9,8,\r\n,\"11,686\",\"-14,088\",\"42,487\",51.41,0.30,-0.40,\"5,62,380\",0.25,0.30,\"80,275\",\"24,400.00\",130,\"1,855.05\",\"1,872.75\",195,-77.00,\"1,867.30\",-,630,-261,588,\r\n,\"2,722\",-227,\"9,740\",52.62,0.25,-0.40,\"1,31,170\",0.25,0.30,\"31,265\",\"24,450.00\",780,\"1,874.15\",\"1,919.50\",65,194.90,\"1,849.90\",89.24,5,-2,14,\r\n,\"36,236\",\"-26,226\",\"1,12,826\",54.56,0.40,-0.30,\"2,18,205\",0.35,0.40,\"3,45,865\",\"24,500.00\",130,\"1,955.00\",\"1,960.10\",130,-91.55,\"1,957.00\",-,928,-740,\"4,022\",\r\n,\"3,057\",-107,\"6,459\",55.01,0.35,-0.30,\"53,300\",0.30,0.35,\"1,29,350\",\"24,550.00\",780,\"1,934.90\",\"2,048.80\",780,-,-,-,-,-,9,\r\n,\"5,190\",\"-13,558\",\"40,043\",56.98,0.35,-0.35,\"1,86,680\",0.30,0.35,\"54,860\",\"24,600.00\",65,\"2,054.70\",\"2,066.65\",65,-110.75,\"2,055.00\",-,206,-176,93,\r\n,\"1,037\",-749,\"4,520\",58.89,0.40,-0.25,\"36,790\",0.30,0.35,\"5,720\",\"24,650.00\",780,\"2,084.60\",\"2,119.05\",65,191.45,\"2,091.45\",-,61,-23,36,\r\n,\"2,985\",\"-1,872\",\"10,906\",58.58,0.25,-0.35,\"2,64,680\",0.25,0.30,\"56,550\",\"24,700.00\",780,\"2,127.80\",\"2,185.15\",780,-206.00,\"2,144.00\",-,25,-21,16,\r\n,\"1,740\",-89,\"3,087\",59.76,0.30,-0.30,\"15,925\",0.30,0.35,\"12,870\",\"24,750.00\",780,\"2,133.70\",\"2,244.60\",780,-,-,126.59,-,-,4,\r\n,\"3,941\",\"-2,033\",\"10,845\",60.93,0.30,-0.30,\"1,79,010\",0.25,0.30,\"36,920\",\"24,800.00\",780,\"2,225.95\",\"2,283.60\",780,-94.65,\"2,245.00\",-,22,-9,164,\r\n,\"1,129\",135,\"2,627\",62.10,0.30,-0.25,\"7,995\",0.30,0.35,\"57,980\",\"24,850.00\",780,\"2,230.45\",\"2,335.85\",780,-,-,178.63,-,-,5,\r\n,\"3,519\",-388,\"7,415\",63.26,0.25,-0.25,\"4,00,725\",0.20,0.25,\"76,895\",\"24,900.00\",845,\"2,259.55\",\"2,396.05\",780,-,-,144.82,-,-,2,\r\n,830,150,\"3,361\",63.44,0.30,-0.25,\"27,235\",0.25,0.30,\"4,485\",\"24,950.00\",780,\"2,323.85\",\"2,450.50\",780,-,-,-,-,-,1,\r\n,\"21,826\",\"-11,168\",\"98,780\",63.40,0.25,-0.30,\"12,07,050\",0.20,0.25,\"3,70,370\",\"25,000.00\",130,\"2,450.75\",\"2,468.85\",195,-96.10,\"2,451.30\",-,763,-609,920,\r\n,792,-5,\"1,195\",65.72,0.30,-0.20,\"23,920\",0.25,0.30,\"3,380\",\"25,050.00\",780,\"2,410.10\",\"2,548.35\",780,130.00,\"2,530.00\",117.82,1,-,9,\r\n,\"2,287\",42,\"8,438\",66.85,0.25,-0.20,\"20,605\",0.25,0.30,\"60,970\",\"25,100.00\",65,\"2,531.30\",\"2,566.95\",65,80.00,\"2,600.00\",134.44,73,-63,23,\r\n,522,23,\"1,590\",69.03,0.25,-0.25,\"29,770\",0.25,0.30,\"3,900\",\"25,150.00\",780,\"2,328.25\",\"2,653.50\",780,-,-,-,-,-,-,\r\n,\"4,372\",123,\"24,381\",67.86,0.25,-0.25,\"3,90,390\",0.20,0.25,\"1,62,890\",\"25,200.00\",780,\"2,589.35\",\"2,700.05\",780,90.00,\"2,640.00\",-,2,-1,15,\r\n,416,236,\"1,107\",71.31,0.30,-0.20,\"3,575\",0.25,0.30,910,\"25,250.00\",780,\"2,605.45\",\"2,752.30\",780,-,-,-,-,-,10,\r\n,\"4,234\",-347,\"11,623\",70.07,0.25,-0.25,\"3,32,605\",0.20,0.25,\"1,60,030\",\"25,300.00\",780,\"2,643.05\",\"2,801.90\",780,-,-,-,-,-,8,\r\n,342,61,844,73.57,0.30,-0.20,\"2,145\",0.30,0.35,\"14,885\",\"25,350.00\",780,\"2,720.75\",\"2,854.15\",780,-,-,-,-,-,8,\r\n,879,217,\"1,233\",73.57,0.35,-0.20,\"5,265\",0.25,0.35,\"14,170\",\"25,400.00\",780,\"2,810.45\",\"2,899.00\",780,40.00,\"2,840.00\",-,10,-9,23,\r\n,816,548,936,74.68,0.25,-0.25,845,0.25,0.30,\"2,340\",\"25,450.00\",780,\"2,817.85\",\"2,950.35\",780,-,-,-,-,-,-,\r\n,\"11,209\",\"-1,334\",\"14,077\",75.78,0.30,-0.20,\"30,940\",0.25,0.30,\"95,875\",\"25,500.00\",65,\"2,953.45\",\"2,964.25\",65,-45.00,\"2,955.00\",-,228,-176,842,\r\n,601,251,\"1,246\",76.89,0.25,-0.25,\"1,235\",0.25,0.30,\"2,535\",\"25,550.00\",780,\"2,763.65\",\"3,052.05\",780,-,-,-,-,-,-,\r\n,\"1,964\",-198,\"3,689\",79.16,0.30,-0.25,\"25,350\",0.25,0.30,\"19,240\",\"25,600.00\",780,\"2,976.25\",\"3,085.25\",780,-,-,-,-,-,2,\r\n,876,199,\"1,562\",80.27,0.25,-0.20,195,0.25,0.30,\"3,640\",\"25,650.00\",780,\"3,016.20\",\"3,148.05\",260,364.50,\"3,160.00\",161.73,4,-,4,\r\n,\"2,567\",35,\"6,414\",81.37,0.25,-0.20,\"86,645\",0.25,0.30,\"25,870\",\"25,700.00\",780,\"3,038.65\",\"3,180.95\",195,-,-,-,-,-,11,\r\n,\"1,387\",262,\"3,565\",83.54,0.35,-0.10,\"4,550\",0.30,0.35,\"4,290\",\"25,750.00\",780,\"3,115.65\",\"3,261.15\",780,-,-,-,-,-,2,\r\n,\"9,617\",\"1,024\",\"20,391\",82.34,0.30,-0.15,\"1,55,220\",0.25,0.30,\"40,170\",\"25,800.00\",780,\"3,234.60\",\"3,267.70\",65,332.55,\"3,310.00\",167.32,83,-72,83,\r\n";</script>
+<script>(function () {
+'use strict';
+const $ = id => document.getElementById(id);
+const U = OCI.U, F = OCI.fmt;
+const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const nIN = x => x == null || !isFinite(x) ? '–' : Number(x).toLocaleString('en-IN', { maximumFractionDigits: 0 });
+const f2 = (x, d = 2) => x == null || !isFinite(x) ? '–' : Number(x).toFixed(d);
+const inr = x => x == null || !isFinite(x) ? '–' : '₹' + Number(x).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const pct = (x, d = 1) => x == null || !isFinite(x) ? '–' : (100 * x).toFixed(d) + '%';
+const sg = x => x == null || !isFinite(x) ? '–' : (x > 0 ? '+' : '') + nIN(x);
+function compact(x) { if (x == null || !isFinite(x)) return '–'; const a = Math.abs(x), s = x < 0 ? '-' : ''; if (a >= 1e7) return s + (a / 1e7).toFixed(2) + 'Cr'; if (a >= 1e5) return s + (a / 1e5).toFixed(2) + 'L'; if (a >= 1e3) return s + (a / 1e3).toFixed(1) + 'k'; return s + Math.round(a); }
+const dstr = d => d ? new Date(d.getTime() + 5.5 * 3600e3).toISOString().replace('T', ' ').slice(0, 16) + ' IST' : '–';
+const dday = d => { if (!d) return '–'; const x = new Date(d.getTime() + 5.5 * 3600e3), M = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']; return String(x.getUTCDate()).padStart(2, '0') + '-' + M[x.getUTCMonth()] + '-' + x.getUTCFullYear(); };
+let toastT; function toast(m) { const t = $('toast'); t.textContent = m; t.hidden = false; clearTimeout(toastT); toastT = setTimeout(() => t.hidden = true, 3600); }
+
+/* ---------- state ---------- */
+const S = { rows: null, filename: null, res: null, sel: null, settings: {}, text: null };
+try { const s = localStorage.getItem('oci.settings'); if (s) S.settings = JSON.parse(s) || {}; } catch (e) {}
+const saveSettings = () => { try { localStorage.setItem('oci.settings', JSON.stringify(S.settings)); } catch (e) {} };
+
+/* ---------- file reading ---------- */
+function rowsFromWorkbook(buf) {
+  if (typeof XLSX === 'undefined') throw new Error('The spreadsheet reader could not be loaded. Save the sheet as CSV and upload that instead.');
+  const wb = XLSX.read(buf, { type: 'array' });
+  let best = null;
+  for (const n of wb.SheetNames) {
+    const rows = XLSX.utils.sheet_to_json(wb.Sheets[n], { header: 1, raw: false, defval: '' }).map(r => r.map(c => String(c).trim()));
+    const hit = rows.slice(0, 40).some(r => r.some(c => /^strike( price)?$/i.test(c)));
+    if (hit && (!best || rows.length > best.length)) best = rows;
+  }
+  if (!best) throw new Error('No sheet with a "Strike" column was found in this workbook.');
+  return best;
+}
+async function readFile(file) {
+  const ext = (file.name.split('.').pop() || '').toLowerCase();
+  if (ext === 'xlsx' || ext === 'xls') return rowsFromWorkbook(await file.arrayBuffer());
+  const text = await file.text(); S.text = text; return OCI.ingest.parseCSV(text);
+}
+function setStep(n) { for (let i = 1; i <= 4; i++) $('s' + i).classList.toggle('on', i === n); }
+function preview(rows, name) {
+  try {
+    const lay = OCI.ingest.detectLayout(rows);
+    const n = rows.length - lay.headerRow - 1, hdr = rows[lay.headerRow];
+    const mapped = Object.keys(lay.map.CE).length + Object.keys(lay.map.PE).length;
+    $('fileInfo').innerHTML = `<span class="up">✓ Valid structure</span> · ${n} data rows · header on row ${lay.headerRow + 1} · ${mapped} fields mapped (${Object.keys(lay.map.CE).length} call, ${Object.keys(lay.map.PE).length} put) · strike column “${esc(hdr[lay.strikeCol])}”`;
+    $('btnAnalyze').disabled = false; setStep(2); return true;
+  } catch (e) { $('fileInfo').innerHTML = `<span class="err">${esc(e.message)}</span>`; $('btnAnalyze').disabled = true; setStep(1); return false; }
+}
+async function loadFile(file) {
+  S.filename = file.name; $('fileLine').textContent = file.name; $('fileInfo').textContent = 'Reading…';
+  try { S.rows = await readFile(file); preview(S.rows, file.name); }
+  catch (e) { S.rows = null; $('btnAnalyze').disabled = true; $('fileInfo').innerHTML = `<span class="err">${esc(e.message)}</span>`; }
+}
+function loadSample() { S.filename = SAMPLE_NAME; S.text = SAMPLE_CSV; S.rows = OCI.ingest.parseCSV(SAMPLE_CSV); $('fileLine').textContent = SAMPLE_NAME + '  (initial test file)'; preview(S.rows); }
+
+/* ---------- settings ---------- */
+const FIELDS = [
+  ['spotOverride', 'Spot override (blank = auto)', 'number'], ['underlying', 'Underlying (blank = auto)', 'text'], ['expiry', 'Expiry e.g. 06-Oct-2026', 'text'], ['lotSize', 'Lot size (blank = auto)', 'number'],
+  ['asOf', 'Snapshot time (IST)', 'datetime-local'], ['rate', 'Risk-free rate', 'number'], ['divYield', 'Dividend yield', 'number'], ['riskCapital', 'Risk capital ₹', 'number'],
+  ['riskPct', 'Risk per trade %', 'number'], ['lots', 'Lots', 'number'], ['minRR', 'Minimum R:R', 'number'], ['maxSpreadPct', 'Max spread %', 'number']
+];
+function buildSettings() {
+  const el = $('settings'), w = OCI.DEFAULTS.weights;
+  el.innerHTML = `<div class="lbl" style="margin-bottom:8px">Model settings (stored only in this browser)</div>
+  <div class="cfg">${FIELDS.map(([k, l, t]) => `<label>${l}<input id="cfg_${k}" type="${t}" step="any" value="${esc(S.settings[k] ?? '')}"></label>`).join('')}</div>
+  <div class="lbl" style="margin:14px 0 8px">Scoring weights (normalised to 100)</div>
+  <div class="cfg">${Object.keys(w).map(k => `<label>${OCI.FACTOR_LABEL[k]}<input id="w_${k}" type="number" min="0" step="1" value="${S.settings['w_' + k] ?? w[k]}"></label>`).join('')}</div>
+  <div style="display:flex;gap:8px;margin-top:12px"><button class="btn gold" id="cfgApply" type="button">Apply and re-analyze</button><button class="btn" id="cfgReset" type="button">Reset</button></div>`;
+  $('cfgApply').onclick = () => { collectSettings(); saveSettings(); el.hidden = true; if (S.rows) runAnalysis(); };
+  $('cfgReset').onclick = () => { S.settings = {}; saveSettings(); buildSettings(); };
+}
+function collectSettings() {
+  const s = {};
+  for (const [k, , t] of FIELDS) { const v = $('cfg_' + k).value.trim(); if (v !== '') s[k] = v; }
+  for (const k of Object.keys(OCI.DEFAULTS.weights)) { const v = $('w_' + k).value.trim(); if (v !== '' && +v !== OCI.DEFAULTS.weights[k]) s['w_' + k] = +v; }
+  S.settings = s;
+}
+function buildOpts() {
+  const s = S.settings, o = { filename: S.filename }, num = k => s[k] !== undefined && isFinite(+s[k]) ? +s[k] : undefined;
+  if (num('spotOverride')) o.spotOverride = num('spotOverride');
+  if (s.underlying) o.underlying = s.underlying.toUpperCase();
+  if (s.expiry) o.expiry = s.expiry;
+  if (num('lotSize')) o.lotSize = num('lotSize');
+  if (num('rate') !== undefined) o.rate = num('rate'); if (num('divYield') !== undefined) o.divYield = num('divYield');
+  if (num('riskCapital')) o.riskCapital = num('riskCapital'); if (num('riskPct')) o.riskPct = num('riskPct'); if (num('lots')) o.lots = Math.max(1, Math.round(num('lots')));
+  if (num('minRR')) o.minRR = num('minRR'); if (num('maxSpreadPct')) o.maxSpreadPct = num('maxSpreadPct');
+  const w = {}; for (const k of Object.keys(OCI.DEFAULTS.weights)) if (s['w_' + k] !== undefined) w[k] = s['w_' + k]; if (Object.keys(w).length) o.weights = w;
+  // snapshot time: user value (IST) > now, unless the expiry has already passed, then the previous session close
+  const ex = o.expiry ? OCI.ingest.parseExpiryString(o.expiry) : OCI.ingest.parseExpiryString(S.filename);
+  o.assumed = null;
+  if (s.asOf) o.asOf = new Date(s.asOf + ':00+05:30');
+  else {
+    const now = new Date();
+    if (ex && OCI.ingest.expiryToDate(ex) <= now) { o.asOf = new Date(Date.UTC(ex.y, ex.mo, ex.d - 1, 9, 42)); o.assumed = 'The expiry in this file has already passed, so the snapshot time is assumed to be 15:12 IST on the previous session (' + dstr(o.asOf) + '). Set the real time in Model settings if it differs.'; }
+  }
+  return o;
+}
+
+/* ---------- run ---------- */
+async function runAnalysis() {
+  if (!S.rows) return;
+  const list = $('pipeList'); $('pipe').hidden = false; $('out').style.opacity = .35; setStep(3);
+  list.innerHTML = OCI.STAGES.map((s, i) => `<li id="st${i}">${s}</li>`).join('');
+  try {
+    const o = buildOpts(), assumed = o.assumed; delete o.assumed;
+    const res = await OCI.analyzeAsync(S.rows, o, (i) => { for (let j = 0; j < OCI.STAGES.length; j++) { const li = $('st' + j); li.className = j < i ? 'done' : j === i ? 'run' : ''; } });
+    for (let j = 0; j < OCI.STAGES.length; j++) $('st' + j).className = 'done';
+    res.asOfAssumed = assumed; res.asOfDate = o.asOf || new Date(); S.res = res;
+    const best = res.decision.chosen || res.decision.reference; S.sel = best ? best.side + best.K : null;
+    await new Promise(r => setTimeout(r, 250));
+    $('pipe').hidden = true; $('out').style.opacity = 1; setStep(4); render(); $('btnReport').disabled = false;
+  } catch (e) {
+    $('pipe').hidden = true; $('out').style.opacity = 1; setStep(2);
+    $('out').innerHTML = `<div class="callout bad"><b>Analysis could not be completed.</b><br>${esc(e.message)}</div>`; console.error(e);
+  }
+}
+
+/* ---------- chart primitives (one scale per chart, theme tokens only) ---------- */
+function niceMax(v) { if (v <= 0) return 1; const e = Math.pow(10, Math.floor(Math.log10(v))), m = v / e; return (m <= 1 ? 1 : m <= 2 ? 2 : m <= 2.5 ? 2.5 : m <= 5 ? 5 : 10) * e; }
+function chart(o) {
+  const { strikes, series, kind = 'bar', h = 230, fmt = compact, markers = [], step, title, cap, id, bands = [] } = o;
+  const W = 900, L = 52, R = 12, T = 12, B = 30, iw = W - L - R, ih = h - T - B, n = strikes.length;
+  const all = series.flatMap(s => s.vals).filter(U.isNum);
+  let lo = Math.min(0, ...all), hi = Math.max(0, ...all);
+  if (kind === 'line') { lo = Math.min(...all); hi = Math.max(...all); const pad = (hi - lo) * .08 || 1; lo -= pad; hi += pad; if (o.zero) lo = Math.min(lo, 0); }
+  else { hi = niceMax(hi); if (lo < 0) lo = -niceMax(-lo); }
+  const y = v => T + ih * (1 - (v - lo) / (hi - lo)), slot = iw / n, x = i => L + slot * (i + .5);
+  const xi = K => (K - strikes[0]) / step; // fractional index
+  let g = '';
+  for (let t = 0; t <= 4; t++) { const v = lo + (hi - lo) * t / 4, yy = y(v); g += `<line class="gl" x1="${L}" x2="${W - R}" y1="${yy}" y2="${yy}"/><text x="${L - 6}" y="${yy + 3}" text-anchor="end">${fmt(v)}</text>`; }
+  if (lo < 0 && hi > 0) g += `<line class="ax" x1="${L}" x2="${W - R}" y1="${y(0)}" y2="${y(0)}"/>`;
+  for (const b of bands) { const x1 = L + slot * (xi(b.lo) ), x2 = L + slot * (xi(b.hi) + 1); g += `<rect x="${Math.max(L, x1)}" y="${T}" width="${Math.max(2, Math.min(W - R, x2) - Math.max(L, x1))}" height="${ih}" fill="${b.color}" opacity=".13"/>`; }
+  const every = Math.ceil(n / 12);
+  strikes.forEach((K, i) => { if (i % every === 0) g += `<text x="${x(i)}" y="${h - 10}" text-anchor="middle">${nIN(K)}</text>`; });
+  if (kind === 'bar') {
+    const bw = Math.max(2, Math.min(18, slot * (series.length > 1 ? .4 : .7)));
+    series.forEach((s, si) => s.vals.forEach((v, i) => { if (!U.isNum(v)) return; const cx = x(i) + (si - (series.length - 1) / 2) * (bw + 1), y0 = y(0), y1 = y(v); g += `<rect x="${cx - bw / 2}" y="${Math.min(y0, y1)}" width="${bw}" height="${Math.max(.5, Math.abs(y1 - y0))}" fill="${s.color}"><title>${nIN(strikes[i])} ${s.name}: ${nIN(v)}</title></rect>`; }));
+  } else series.forEach(s => {
+    let d = '', pen = false; s.vals.forEach((v, i) => { if (!U.isNum(v)) { pen = false; return; } d += (pen ? 'L' : 'M') + x(i).toFixed(1) + ' ' + y(v).toFixed(1); pen = true; });
+    g += `<path d="${d}" fill="none" stroke="${s.color}" stroke-width="2" stroke-linejoin="round"/>`;
+    s.vals.forEach((v, i) => { if (U.isNum(v)) g += `<circle cx="${x(i)}" cy="${y(v)}" r="2.2" fill="${s.color}"><title>${nIN(strikes[i])} ${s.name}: ${f2(v, 2)}</title></circle>`; });
+  });
+  for (const m of markers) { if (m.K < strikes[0] - step / 2 || m.K > strikes[n - 1] + step / 2) continue; const xx = L + slot * (xi(m.K) + .5); g += `<line x1="${xx}" x2="${xx}" y1="${T}" y2="${T + ih}" stroke="${m.color}" stroke-width="1.4" stroke-dasharray="${m.dash || '4 3'}"/><text x="${xx + 3}" y="${T + 9 + (m.row || 0) * 11}" style="fill:${m.color};font-weight:600">${m.label}</text>`; }
+  return `<div class="chart"><h4>${title}</h4>${cap ? `<div class="cap">${cap}</div>` : ''}<svg viewBox="0 0 ${W} ${h}" role="img" aria-label="${esc(title)}">${g}</svg><div class="legend">${series.map(s => `<span><i style="background:${s.color}"></i>${s.name}</span>`).join('')}${markers.map(m => `<span><i style="background:${m.color};height:2px;vertical-align:3px"></i>${m.label}</span>`).join('')}</div></div>`;
+}
+
+/* ---------- section renderers ---------- */
+const cls = x => x > 0 ? 'up' : x < 0 ? 'dn' : '';
+function secH(t, s) { return `<div class="sec-h"><h2>${t}</h2>${s ? `<span>${s}</span>` : ''}</div>`; }
+function regPill(r) { const x = r.regime; const c = /BULL/.test(x) ? 'bull' : /BEAR/.test(x) ? 'bear' : /UNSTABLE/.test(x) ? 'warn' : /INSUFF/.test(x) ? 'mute' : 'info'; return `<span class="pill ${c}">${x}</span>`; }
+function biasPill(b) { return `<span class="pill ${b === 'Bullish' ? 'bull' : b === 'Bearish' ? 'bear' : 'info'}">${b}</span>`; }
+function sigPill(s) { const c = s === 'STRONG TRADE' || s === 'TRADE' ? 'bull' : s === 'WATCH' ? 'warn' : s === 'WEAK' ? 'mute' : 'bear'; return `<span class="pill ${c}">${s}</span>`; }
+
+function rDQ(r) {
+  const d = r.dataQuality, c = d.score >= 80 ? 'bull' : d.score >= 65 ? 'info' : d.score >= 50 ? 'warn' : 'bear', L = OCI.FIELD_LABEL, hdr = S.rows[r.layout.headerRow];
+  const mapRow = side => Object.entries(r.layout.map[side]).map(([f, ci]) => `<tr><td class="l">${esc(L[f] || f)}</td><td class="l">${esc(hdr[ci] || '')}</td><td>${pct(d.coverage[f] ?? null, 0)}</td></tr>`).join('');
+  return `<section class="sec">${secH('Data quality', 'checked before any analysis')}
+  <div class="card" style="display:grid;gap:12px">
+   <div style="display:flex;gap:14px;align-items:center;flex-wrap:wrap"><div class="mono" style="font-size:26px;font-weight:500">${d.score}%</div><span class="pill ${c}">${d.label}</span><span class="note">Completeness ${pct(d.completeness, 0)} · Validity ${pct(d.validity, 0)} · Structure ${pct(d.structure, 0)} · ${r.strikes.length} strikes · ${d.windowStrikes} in the ±${r.cfg.nearSteps}-strike core window${r.parity ? ` · put-call parity slope ${f2(r.parity.slope, 3)} (R² ${f2(r.parity.r2, 4)})` : ''}</span></div>
+   ${d.issues.length ? `<ul class="plain">${d.issues.map(i => `<li>${esc(i.msg)}</li>`).join('')}</ul>` : '<div class="note">No data issues detected.</div>'}
+   ${d.notes && d.notes.length ? `<div class="note">${d.notes.map(esc).join(' · ')}</div>` : ''}
+   <details><summary>Available, missing and non-calculable metrics · column mapping</summary><div>
+    <div class="grid g2"><div><div class="lbl">Available</div><div class="note" style="color:var(--ink2)">${d.available.map(f => esc(L[f] || f)).join(', ') || 'none'}</div></div>
+    <div><div class="lbl">Missing from this file</div><div class="note" style="color:var(--ink2)">${d.missing.map(f => esc(L[f] || f)).join(', ') || 'none'}</div></div></div>
+    <div><div class="lbl">Could not be calculated</div><ul class="plain">${d.uncalculable.map(x => `<li>${esc(x)}</li>`).join('')}</ul></div>
+    <div class="grid g2"><div class="tw"><table><thead><tr><th>Call field</th><th class="l">Source column</th><th>Coverage</th></tr></thead><tbody>${mapRow('CE')}</tbody></table></div>
+    <div class="tw"><table><thead><tr><th>Put field</th><th class="l">Source column</th><th>Coverage</th></tr></thead><tbody>${mapRow('PE')}</tbody></table></div></div></div></details>
+  </div></section>`;
+}
+function rSnapshot(r) {
+  const c = (l, v, s) => `<div><div class="lbl">${l}</div><div class="v">${v}</div><div class="s">${s || '&nbsp;'}</div></div>`;
+  const mp = r.maxPain.strike, dist = mp != null ? mp - r.spot : null;
+  return `<section class="sec">${secH('Market snapshot', esc(r.filename || ''))}
+  ${r.asOfAssumed ? `<div class="callout info">${esc(r.asOfAssumed)}</div>` : ''}
+  <div class="snap">
+   ${c('Underlying', esc(r.underlying), r.lotSize ? 'Lot size ' + r.lotSize : 'Lot size not detected')}
+   ${c('Spot', nIN(r.spot), r.spotActual ? esc(r.spotSource) : '<span class="wn">Estimated · synthetic spot</span>')}
+   ${c('Expiry', r.expiry ? dday(r.expiry) : 'Unknown', r.expiry ? '15:30 IST' : 'not found in file')}
+   ${c('Days to expiry', r.dte != null ? r.dte : '–', r.tctx.known ? f2(r.tctx.hours, 1) + ' hours left' : '')}
+   ${c('ATM strike', nIN(r.atm), 'Step ' + r.step)}
+   ${c('Max pain', nIN(mp), dist != null ? sg(Math.round(dist)) + ' pts from spot · context only' : '')}
+   ${c('PCR (OI)', f2(r.pcr.oiAll, 2), 'Near-ATM ' + f2(r.pcr.oiNear, 2) + ' · Volume ' + f2(r.pcr.volAll, 2))}
+   ${c('Expected move', '±' + nIN(r.expectedMove), pct(r.expectedMove / r.spot, 2) + ' · 1σ to expiry' + (r.straddle ? ' · straddle ' + f2(r.straddle, 0) : ''))}
+   ${c('Market regime', regPill(r.regime), '')}
+   ${c('Overall bias', biasPill(r.regime.bias), 'Direction score ' + f2(r.direction.D, 2))}
+   ${c('ATM IV', r.iv.atmIv != null ? f2(r.iv.atmIv * 100, 1) + '%' : '–', 'Skew (put−call, ±3) ' + (r.iv.skew != null ? sg(+f2(r.iv.skew, 1)) + ' pts' : 'n/a'))}
+   ${c('Data quality', r.dataQuality.score + '%', r.dataQuality.label)}
+  </div></section>`;
+}
+
+function planBlock(c) {
+  const p = c.plan, L = c.leg;
+  const kv = (k, v, cl) => `<div><div class="k">${k}</div><div class="v ${cl || ''}">${v}</div></div>`;
+  return `<div class="kv">
+   ${kv('Strike', `${nIN(c.K)} ${c.side}<br><small style="color:var(--navy-mute)">${c.label} · Δ ${L.delta != null ? f2(L.delta, 2) : 'n/a'}</small>`)}
+   ${kv('Entry', `${inr(p.entry.preferredLow)} – ${inr(p.entry.preferredHigh)}<br><small style="color:var(--navy-mute)">aggressive ${inr(p.entry.aggressive)} · avoid above ${inr(p.avoidAbove)}</small>`)}
+   ${kv('Stop loss', `${inr(p.sl.premium)}<br><small style="color:var(--navy-mute)">underlying ${p.dir > 0 ? '<' : '>'} ${nIN(Math.round(p.sl.underlying))}</small>`, 'r')}
+   ${kv('Risk / reward', `1 : ${f2(p.rr.main, 2)}<br><small style="color:var(--navy-mute)">to ${p.rr.mainIs}${p.rr.atAsk != null ? ' · at ask 1 : ' + f2(p.rr.atAsk, 2) : ''}</small>`)}
+   ${[0, 1, 2].map(i => { const t = p.targets[i]; return kv('Target ' + (i + 1), t ? `${inr(t.premium)}<br><small style="color:var(--navy-mute)">underlying ${nIN(Math.round(t.underlying))} · 1:${f2(t.rr, 1)}</small>` : '<span style="color:var(--navy-mute)">not supported</span>', t ? 'g' : ''); }).join('')}
+   ${kv('Max planned loss', p.riskPerLot ? inr(p.riskPerLot * (p.lots || 1)) + `<br><small style="color:var(--navy-mute)">${p.lots || 1} lot(s) × ${p.lotSize}${p.lotsByRisk != null ? ' · risk-sized: ' + p.lotsByRisk + ' lot(s)' : ''}</small>` : 'n/a')}
+  </div>
+  <div><h3>Trade invalidation</h3><div style="font-size:13.5px;color:#dfe5f2">${esc(p.invalidation)}</div></div>`;
+}
+function rDecision(r) {
+  const d = r.decision, c = d.chosen, ref = d.reference, T = r.cfg.thresholds;
+  const word = d.kind === 'NO TRADE' ? 'NO TRADE' : d.action, wc = d.kind === 'NO TRADE' ? 'no' : (c.side === 'CE' ? 'call' : 'put');
+  const bc = d.kind === 'NO TRADE' ? 'nt' : d.kind === 'WATCH' ? 'wa' : 'go';
+  const sc = d.score, scl = sc != null ? OCI.signals.classifyScore(sc, r.cfg) : null;
+  let right = '';
+  if (c) {
+    right = planBlock(c) + `<div><h3>Why this trade</h3><ol class="why">${d.reasons.map(x => `<li>${esc(x)}</li>`).join('')}</ol></div>` +
+      (d.kind === 'WATCH' ? `<div><h3>Not yet a buy</h3><ul class="why">${c.softFails.map(g => `<li>${esc(g.msg)}</li>`).join('')}${c.score < T.trade ? `<li>Signal Quality ${c.score} is below the ${T.trade} needed for a trade</li>` : ''}</ul></div>` : '');
+  } else {
+    right = `<div><div class="stay">${esc(d.staying || '')}</div></div>
+     <div><h3>Why there is no trade</h3><ul class="why">${d.noTradeReasons.map(x => `<li>${esc(x)}</li>`).join('')}</ul></div>
+     <div><h3>What would change the decision</h3><ul class="why">${d.triggers.map(x => `<li>${esc(x)}</li>`).join('')}</ul></div>`;
+  }
+  return `<section class="sec"><div class="slab"><div class="ban ${bc}"><span>${esc(d.banner)}</span><span>${esc(r.underlying)} · ${dday(r.expiry)} expiry</span></div>
+   <div class="slab-body"><div class="slab-l"><div class="lbl" style="color:var(--navy-mute)">Decision</div><div class="act ${wc}">${esc(word)}</div>
+    <div><div class="lbl" style="color:var(--navy-mute)">Signal Quality Score</div><div class="score"><b>${sc != null ? sc : '–'}</b><span>/ 100${scl ? ' — ' + (d.kind === 'NO TRADE' ? 'highest-ranked setup is ' + scl.toLowerCase() : d.classification.toLowerCase().replace(/^./, m => m.toUpperCase())) : ''}</span></div><div class="meter"><i style="width:${sc || 0}%"></i></div></div>
+    <div style="display:flex;gap:6px;flex-wrap:wrap">${regPill(r.regime)} ${biasPill(r.regime.bias)}</div>
+    <small>The score ranks setup quality from the evidence in this file. It is not a probability of profit; predictive accuracy needs historical backtesting. Bands: ${T.strong}+ strong, ${T.trade}+ trade, ${T.watch}+ watch, ${T.weak}+ weak.</small></div>
+    <div class="slab-r">${right}</div></div></div></section>`;
+}
+function rAlt(r) {
+  const d = r.decision; let a = d.alternative, title, note;
+  if (a) { title = 'Alternative — Lower Conviction'; note = ''; }
+  else if (d.kind === 'NO TRADE') {
+    const pool = [...r.candidates.CE, ...r.candidates.PE].sort((x, y) => y.score - x.score); a = pool[0];
+    if (!a) return ''; title = 'Highest-ranked setup (reference only, not a recommendation)'; note = a.hardFails.length ? 'Fails: ' + a.hardFails.map(g => esc(g.msg)).join('; ') : '';
+  } else return '';
+  const p = a.plan;
+  return `<section class="sec">${secH(title)}<div class="card" style="display:grid;gap:8px">
+   <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center"><b class="mono" style="font-size:16px">${nIN(a.K)} ${a.side}</b><span class="pill ${a.side === 'CE' ? 'bull' : 'bear'}">${a.side === 'CE' ? 'CALL' : 'PUT'} · ${a.label}</span>${sigPill(a.signal)}<span class="mono">Score ${a.score}/100</span></div>
+   ${p && p.ok ? `<div class="grid g4" style="font-size:13px"><div><div class="lbl">Entry</div><span class="mono">${inr(p.entry.preferredLow)} – ${inr(p.entry.preferredHigh)}</span></div><div><div class="lbl">Stop loss</div><span class="mono dn">${inr(p.sl.premium)}</span></div><div><div class="lbl">Targets</div><span class="mono">${p.targets.map(t => inr(t.premium)).join(' · ')}</span></div><div><div class="lbl">R:R</div><span class="mono">1 : ${f2(p.rr.main, 2)}</span></div></div>` : `<div class="note">${esc(p ? p.reason : '')}</div>`}
+   ${note ? `<div class="note">${note}</div>` : ''}</div></section>`;
+}
+
+function rStructure(r) {
+  const win = r.strikes.filter(s => Math.abs(s.strike - r.atm) <= 18 * r.step), K = win.map(s => s.strike);
+  const sup = r.sr.support, res = r.sr.resistance;
+  const bands = [...sup.slice(0, 2).map(z => ({ lo: z.low, hi: z.high, color: 'var(--bull)' })), ...res.slice(0, 2).map(z => ({ lo: z.low, hi: z.high, color: 'var(--bear)' }))];
+  const mk = [{ K: r.spot, label: 'Spot', color: 'var(--ink)', dash: '2 0' }, { K: r.maxPain.strike, label: 'Max pain', color: 'var(--gold)', row: 1 }, { K: r.atm, label: 'ATM', color: 'var(--muted)', row: 2 }].filter(m => m.K != null);
+  const zr = (z, nm, cl) => `<div class="zone"><div class="st" style="color:var(--${cl})">${z.low === z.high ? nIN(z.peak) : nIN(z.low) + '–' + nIN(z.high)}</div><div><div class="d">${nm} · ${z.grade} · ${sg(Math.round(z.dist))} pts · ${z.flow ? esc(z.flow.label) : 'flow n/a'}</div><div class="m">OI ${compact(z.oi)} (${sg(z.chgOi)}) · volume ${compact(z.volume)} · premium ${z.chg != null ? (z.chg > 0 ? '+' : '') + z.chg : 'n/a'}</div></div><div><div class="sbar"><i style="width:${z.strength}%;background:var(--${cl})"></i></div><div class="m" style="text-align:right">${z.strength}/100</div></div></div>`;
+  const zoneHtml = (zs, nm, cl) => zs.length ? zs.slice(0, 2).map((z, i) => zr(z, nm + ' ' + (i + 1), cl)).join('') : `<div class="note">No ${nm.toLowerCase()} zone found.</div>`;
+  return `<section class="sec">${secH('Market structure', 'zones combine OI, fresh OI, premium behaviour, volume, prominence and distance')}
+  <div class="card"><div class="chart"><h4>Strike map</h4><div class="cap">Call OI above the axis, put OI below. Green band = support zone, red band = resistance zone.</div>${chartMap(win, K, bands, mk, r)}</div></div>
+  <div class="grid g2"><div class="zones"><div class="lbl">Support</div>${zoneHtml(sup, 'Support zone', 'bull')}</div><div class="zones"><div class="lbl">Resistance</div>${zoneHtml(res, 'Resistance zone', 'bear')}</div></div>
+  <div class="note">Max pain ${nIN(r.maxPain.strike)} is context only and is never used on its own. ${r.sr.crossedRes ? 'Spot has moved through the call wall at ' + nIN(r.sr.crossedRes.peak) + '. ' : ''}${r.sr.crossedSup ? 'Spot has moved through the put wall at ' + nIN(r.sr.crossedSup.peak) + '.' : ''}</div></section>`;
+}
+function chartMap(win, K, bands, mk, r) {
+  const ce = win.map(s => s.CE.oi), pe = win.map(s => s.PE.oi == null ? null : -s.PE.oi);
+  return chart({ strikes: K, step: r.step, kind: 'bar', h: 260, bands, markers: mk, fmt: v => compact(Math.abs(v)), series: [{ name: 'Call OI', color: 'var(--ce)', vals: ce }, { name: 'Put OI', color: 'var(--pe)', vals: pe }] }).replace(/<h4>.*?<\/h4>(<div class="cap">.*?<\/div>)?/, '');
+}
+
+function candRows(list, side, best) {
+  return list.map(c => {
+    const L = c.leg, sel = S.sel === side + c.K, why = c.hardFails[0];
+    return `<tr class="clk ${sel ? 'sel' : ''}" data-k="${side}${c.K}"><td class="l"><b class="mono">${nIN(c.K)}</b><span class="sub">${c.label}${best && best.K === c.K ? ' · top' : ''}</span></td>
+     <td class="n">${f2(L.px, 2)}<span class="sub">${L.pxSource || ''}</span></td><td class="n">${compact(L.oi)}</td><td class="n ${cls(L.chgOi)}">${sg(L.chgOi)}</td><td class="n">${compact(L.volume)}</td>
+     <td class="n">${L.ivUsed != null ? f2(L.ivUsed * 100, 1) : '–'}</td><td class="n">${L.delta != null ? f2(L.delta, 2) : '–'}</td>
+     <td class="n">${L.spreadPct != null ? f2(L.spreadPct, 2) + '%' : '–'}</td><td class="n"><b>${c.score}</b></td><td class="l">${sigPill(why ? 'NO TRADE' : c.signal)}${why ? `<span class="sub" style="white-space:normal;max-width:210px">${esc(why.msg)}</span>` : (c.softFails[0] ? `<span class="sub" style="white-space:normal;max-width:210px">${esc(c.softFails[0].msg)}</span>` : '')}</td></tr>`;
+  }).join('');
+}
+function rRank(r) {
+  const head = `<thead><tr><th>Strike</th><th>Price</th><th>OI</th><th>ΔOI</th><th>Volume</th><th>IV %</th><th>Delta</th><th>Spread</th><th>Score</th><th class="l">Signal</th></tr></thead>`;
+  return `<section class="sec">${secH('Call and put rankings', 'ATM ±2 strikes · click a row for the score breakdown')}
+  <div class="grid g2" style="grid-template-columns:minmax(0,1fr)"><div><div class="lbl" style="margin-bottom:5px">Call ranking</div><div class="tw"><table>${head}<tbody>${candRows(r.candidates.CE, 'CE', r.candidates.CE[0])}</tbody></table></div></div>
+  <div><div class="lbl" style="margin-bottom:5px">Put ranking</div><div class="tw"><table>${head}<tbody>${candRows(r.candidates.PE, 'PE', r.candidates.PE[0])}</tbody></table></div></div></div>
+  <div class="card" id="breakdown"></div></section>`;
+}
+function rBreakdown(r) {
+  const c = [...r.candidates.CE, ...r.candidates.PE].find(x => x.side + x.K === S.sel); if (!c) return '';
+  const w = r.cfg.weights, wt = U.sum(Object.values(w));
+  const rows = Object.keys(w).map(k => { const v = c.factors[k]; return `<div class="fac"><span>${OCI.FACTOR_LABEL[k]}</span><div class="t">${v != null ? `<i style="width:${Math.round(100 * v)}%"></i>` : '<i class="na" style="width:100%"></i>'}</div><span class="mono" style="text-align:right">${v != null ? f2(w[k] * v, 1) : 'n/a'} / ${w[k]}</span></div>`; }).join('');
+  return `<div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:6px"><b class="mono" style="font-size:15px">${nIN(c.K)} ${c.side} score breakdown</b>${sigPill(c.hardFails.length ? 'NO TRADE' : c.signal)}<span class="note">Weights normalise to 100 (now ${wt}); unavailable factors are dropped and the score is scaled by coverage (${pct(c.coverage, 0)}) and data quality.</span></div>${rows}
+   <div class="note" style="margin-top:6px">Raw weighted score ${f2(c.rawScore, 1)} → Signal Quality ${c.score}/100.</div>
+   <div style="margin-top:8px"><div class="lbl">Gates</div><ul class="plain">${c.gates.map(g => `<li class="${g.pass ? '' : g.hard ? 'dn' : 'wn'}">${g.pass ? '✓' : g.hard ? '✗ blocker' : '! caution'} · ${esc(g.msg)}</li>`).join('')}</ul></div>`;
+}
+
+function rCharts(r) {
+  const win = r.strikes.filter(s => Math.abs(s.strike - r.atm) <= 18 * r.step), K = win.map(s => s.strike), base = { strikes: K, step: r.step, markers: [{ K: r.spot, label: 'Spot', color: 'var(--ink)', dash: '2 0' }, { K: r.maxPain.strike, label: 'Max pain', color: 'var(--gold)', row: 1 }] };
+  const bands = [...r.sr.support.slice(0, 1).map(z => ({ lo: z.low, hi: z.high, color: 'var(--bull)' })), ...r.sr.resistance.slice(0, 1).map(z => ({ lo: z.low, hi: z.high, color: 'var(--bear)' }))];
+  const ce = '--ce', pe = '--pe';
+  const S2 = (n, c, f) => ({ name: n, color: `var(${c})`, vals: win.map(f) });
+  return `<section class="sec">${secH('OI and volume analytics')}<div class="grid g2">
+   <div class="card">${chart(Object.assign({}, base, { title: 'Call OI vs strike', cap: 'Open interest by strike. Shaded: nearest support and resistance.', bands, series: [S2('Call OI', ce, s => s.CE.oi)] }))}</div>
+   <div class="card">${chart(Object.assign({}, base, { title: 'Put OI vs strike', bands, series: [S2('Put OI', pe, s => s.PE.oi)] }))}</div>
+   <div class="card">${chart(Object.assign({}, base, { title: 'Change in OI', cap: 'Positive = fresh positions, negative = unwinding.', series: [S2('Call ΔOI', ce, s => s.CE.chgOi), S2('Put ΔOI', pe, s => s.PE.chgOi)] }))}</div>
+   <div class="card">${chart(Object.assign({}, base, { title: 'Volume', series: [S2('Call volume', ce, s => s.CE.volume), S2('Put volume', pe, s => s.PE.volume)] }))}</div></div>
+   <div class="card" style="display:grid;gap:6px"><div class="lbl">Flow and volume read-out</div>
+    <div>${esc(r.volume.label)} · volume imbalance (put − call) ${f2(r.volume.imbalance, 2)} · top call-volume strikes ${r.volume.ceTop.strikes.map(nIN).join(', ')} (${pct(r.volume.ceTop.share, 0)} of near-ATM) · top put-volume strikes ${r.volume.peTop.strikes.map(nIN).join(', ')} (${pct(r.volume.peTop.share, 0)})</div>
+    <div class="note">Chain-wide OI flow score ${f2(r.flow.x, 2)} (+1 = fully bullish build-up) · volume-weighted ${f2(r.flow.volFlow, 2)} · ${r.volume.spikes.length ? 'unusually heavy strikes (cross-strike outliers): ' + r.volume.spikes.map(s => nIN(s.K) + s.side).join(', ') : 'no cross-strike volume outliers'}. Abnormal volume versus history is not available from one snapshot.</div>
+    <div class="tw"><table><thead><tr><th>Strike</th><th class="l">Largest OI moves near spot</th><th>ΔOI</th><th>Premium Δ</th><th>Volume</th></tr></thead><tbody>${r.flow.rows.slice(0, 7).map(x => `<tr><td><b class="mono">${nIN(x.K)} ${x.side}</b></td><td class="l"><span class="pill ${x.flow.bias > 0 ? 'bull' : x.flow.bias < 0 ? 'bear' : 'mute'}">${esc(x.flow.label)}</span></td><td class="n ${cls(x.chgOi)}">${sg(x.chgOi)}</td><td class="n ${cls(x.chg)}">${x.chg != null ? (x.chg > 0 ? '+' : '') + x.chg : '–'}</td><td class="n">${compact(x.volume)}</td></tr>`).join('')}</tbody></table></div>
+    <div class="note">${r.pcr.interpretation.map(esc).join('. ')}.</div></div></section>`;
+}
+function rIV(r) {
+  const win = r.strikes.filter(s => Math.abs(s.strike - r.atm) <= 18 * r.step), K = win.map(s => s.strike);
+  const base = { strikes: K, step: r.step, kind: 'line', markers: [{ K: r.spot, label: 'Spot', color: 'var(--ink)', dash: '2 0' }] };
+  const greeks = ['delta', 'gamma', 'theta', 'vega'], src = new Set(); win.forEach(s => ['CE', 'PE'].forEach(sd => s[sd].greekSource && src.add(s[sd].greekSource)));
+  const gl = { delta: 'Delta', gamma: 'Gamma', theta: 'Theta (₹/day)', vega: 'Vega (₹ per vol pt)' };
+  const cand = [r.decision.chosen, r.decision.reference, ...r.candidates.CE.slice(0, 1), ...r.candidates.PE.slice(0, 1)].filter(Boolean).filter((c, i, a) => a.findIndex(x => x.side === c.side && x.K === c.K) === i);
+  const ivr = r.iv;
+  return `<section class="sec">${secH('IV and Greeks', 'Greeks: ' + [...src].map(x => x === 'Estimated' ? 'Estimated' : x).join(' / ') + ' (Black-Scholes, r=' + pct(r.cfg.rate, 1) + ', q=' + pct(r.cfg.divYield, 1) + ')')}
+  ${!r.spotActual ? '<div class="callout info">Spot is a parity-based synthetic estimate, so Greeks are labelled <b>Estimated</b>. Enter the actual spot in Model settings to make them <b>Calculated</b>.</div>' : ''}
+  <div class="grid g2"><div class="card">${chart(Object.assign({}, base, { title: 'Implied volatility by strike (%)', cap: 'Call IV vs put IV from the file. A gap between the lines is skew.', fmt: v => f2(v, 0), series: [S2('Call IV', '--ce', win.map(s => s.CE.ivUsed != null ? s.CE.ivUsed * 100 : null)), S2('Put IV', '--pe', win.map(s => s.PE.ivUsed != null ? s.PE.ivUsed * 100 : null))] }))}</div>
+  <div class="card">${chart(Object.assign({}, base, { title: 'Option premium by strike (₹)', cap: 'Quote mid where a two-sided quote exists.', fmt: v => nIN(v), series: [S2('Call premium', '--ce', win.map(s => s.CE.px)), S2('Put premium', '--pe', win.map(s => s.PE.px))] }))}</div></div>
+  <div class="card" style="display:grid;gap:6px"><div class="lbl">Volatility read-out</div><div>ATM IV ${ivr.atmIv != null ? f2(ivr.atmIv * 100, 1) + '%' : 'n/a'} (call ${ivr.ceIv != null ? f2(ivr.ceIv * 100, 1) : '–'}, put ${ivr.peIv != null ? f2(ivr.peIv * 100, 1) : '–'}) · ±3-strike skew ${ivr.skew != null ? sg(+f2(ivr.skew, 1)) + ' vol pts (puts ' + (ivr.skew > 0 ? 'richer' : 'cheaper') + ')' : 'n/a'} · IV range near ATM ${ivr.min != null ? f2(ivr.min * 100, 1) + '–' + f2(ivr.max * 100, 1) + '%' : 'n/a'}</div>
+   <div class="note">Relatively expensive near-ATM options (more than 25% above ATM IV): ${ivr.rich.length ? ivr.rich.slice(0, 8).map(x => nIN(x.K) + x.side).join(', ') : 'none'}. Relatively cheaper (more than 10% below): ${ivr.cheap.length ? ivr.cheap.slice(0, 8).map(x => nIN(x.K) + x.side).join(', ') : 'none'}. Buying an expensive option is penalised in the score. ${esc(ivr.notes[0])}.</div></div>
+  <div class="grid g2">${greeks.map(g => `<div class="card">${chart(Object.assign({}, base, { h: 200, title: gl[g] + ' by strike', fmt: v => Math.abs(v) >= 100 ? nIN(v) : f2(v, Math.abs(v) < 0.1 ? 4 : 2), series: [S2('Call', '--ce', win.map(s => s.CE[g])), S2('Put', '--pe', win.map(s => s.PE[g]))] }))}</div>`).join('')}</div>
+  <div class="tw"><table><thead><tr><th>Candidate</th><th>Delta</th><th>Gamma</th><th>Theta ₹/day</th><th>Theta / premium</th><th>Vega</th><th>Vega drop on −${r.cfg.ivCrushPts} vol pts</th><th class="l">Source</th></tr></thead><tbody>${cand.map(c => { const L = c.leg; return `<tr><td class="l"><b class="mono">${nIN(c.K)} ${c.side}</b></td><td class="n">${f2(L.delta, 3)}</td><td class="n">${L.gamma != null ? L.gamma.toFixed(5) : '–'}</td><td class="n">${f2(L.theta, 2)}</td><td class="n">${L.thetaBurn != null ? pct(L.thetaBurn, 0) : '–'}</td><td class="n">${f2(L.vega, 2)}</td><td class="n">${L.ivCrushPct != null ? '−' + pct(L.ivCrushPct, 0) + ' of premium' : '–'}</td><td class="l">${L.greekSource ? `<span class="pill ${L.greekSource === 'Calculated' ? 'bull' : 'warn'}">${L.greekSource}</span>` : 'n/a'}</td></tr>`; }).join('')}</tbody></table></div></section>`;
+  function S2(n, c, vals) { return { name: n, color: `var(${c})`, vals }; }
+}
+function rRisk(r) {
+  const c = r.decision.chosen || r.decision.reference; if (!c) return '';
+  const p = c.plan, L = c.leg, tag = r.decision.chosen ? 'selected setup' : 'highest-ranked setup (reference only)';
+  const lvl = (v, a, b) => v >= b ? ['bear', 'High'] : v >= a ? ['warn', 'Medium'] : ['bull', 'Low'];
+  const thB = L.thetaBurn, ivC = L.ivCrushPct, sp = L.spreadPct;
+  const ivR = ivC != null ? lvl(ivC, .06, .12) : ['mute', 'n/a'], thR = thB != null ? lvl(thB, .25, .45) : ['mute', 'n/a'], liR = sp != null ? lvl(sp, 2, 6) : ['mute', 'n/a'];
+  return `<section class="sec">${secH('Risk management', tag + ': ' + nIN(c.K) + ' ' + c.side)}
+  ${p && p.ok ? `<div class="grid g2"><div class="card" style="display:grid;gap:8px"><div class="lbl">Plan</div><div class="grid g4" style="font-size:13px"><div><div class="lbl">Entry</div><span class="mono">${inr(p.entry.preferredLow)}–${inr(p.entry.preferredHigh)}</span></div><div><div class="lbl">Stop</div><span class="mono dn">${inr(p.sl.premium)}</span></div><div><div class="lbl">Risk / unit</div><span class="mono">${inr(p.risk)}</span></div><div><div class="lbl">R:R</div><span class="mono">1 : ${f2(p.rr.main, 2)}</span></div></div>
+   <div class="note">Stop basis: ${esc(p.sl.basis)}. ${esc(p.assumptions)} The entry stays valid while the premium is at or below ${inr(p.avoidAbove)} (above that R:R drops under ${r.cfg.minRR}); the underlying would be near ${nIN(Math.round(p.chaseLimit || 0))} there.</div>
+   <div class="note">Maximum planned loss: ${p.riskPerLot ? inr(p.riskPerLot * (p.lots || 1)) + ' for ' + (p.lots || 1) + ' lot(s) × ' + p.lotSize : 'lot size not detected'}${p.lotsByRisk != null ? ` · with risk capital ${inr(r.cfg.riskCapital)} at ${r.cfg.riskPct}% the size is ${p.lotsByRisk} lot(s)` : ''}.</div></div>
+   <div class="card"><div class="lbl" style="margin-bottom:6px">Trailing stop plan</div><ul class="plain">${p.trailing.map(t => `<li><b>${t.when}:</b> ${esc(t.text)}</li>`).join('')}</ul></div></div>` : `<div class="callout">${esc(p ? p.reason : 'No plan available')}</div>`}
+  <div class="grid g4"><div class="card"><div class="lbl">IV risk</div><span class="pill ${ivR[0]}">${ivR[1]}</span><div class="note" style="margin-top:6px">${ivC != null ? 'A ' + r.cfg.ivCrushPts + '-point IV drop removes about ' + pct(ivC, 0) + ' of the premium' : 'Needs IV and vega'}</div></div>
+   <div class="card"><div class="lbl">Liquidity risk</div><span class="pill ${liR[0]}">${liR[1]}</span><div class="note" style="margin-top:6px">Spread ${sp != null ? f2(sp, 2) + '% of mid' : 'n/a'}${L.depth != null ? ' · top-of-book depth ' + nIN(L.depth) : ''}</div></div>
+   <div class="card"><div class="lbl">Theta risk</div><span class="pill ${thR[0]}">${thR[1]}</span><div class="note" style="margin-top:6px">${thB != null ? pct(thB, 0) + ' of premium per calendar day; ' + f2(r.tctx.hours, 1) + 'h to expiry' : 'Needs Greeks'}</div></div>
+   <div class="card"><div class="lbl">Gamma / expiry risk</div><span class="pill ${r.dte != null && r.dte <= 1 ? 'bear' : r.dte <= 3 ? 'warn' : 'bull'}">${r.dte != null && r.dte <= 1 ? 'Very high' : r.dte <= 3 ? 'Elevated' : 'Normal'}</span><div class="note" style="margin-top:6px">${r.dte != null ? r.dte + ' day(s) to expiry: option prices move sharply for small underlying moves' : 'Expiry unknown'}</div></div></div></section>`;
+}
+function rBreakout(r) {
+  const bo = r.breakout, blk = (b, t) => `<div class="card"><div style="display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap"><b>${t}</b><span class="pill ${b.state === 'confirmed' ? (b.dir > 0 ? 'bull' : 'bear') : b.state === 'unconfirmed' ? 'warn' : 'mute'}">${esc(b.label)}</span></div>
+   <div class="chk" style="margin-top:8px">${b.checks.map(c => `<div><span class="pill ${c.pass === true ? 'bull' : c.pass === false ? 'bear' : 'mute'}">${c.pass === true ? 'PASS' : c.pass === false ? 'FAIL' : 'N/A'}</span><span><b>${esc(c.name)}</b><br><span class="note">${esc(c.detail)}</span></span></div>`).join('')}</div></div>`;
+  return `<section class="sec">${secH('Breakout and false-breakout filter')}${bo.falseBreakout ? '<div class="callout bad"><b>FALSE BREAKOUT RISK — AVOID CHASING.</b> Price has moved through a wall that the OI, volume or premium data do not confirm.</div>' : ''}<div class="grid g2">${blk(bo.up, 'Bullish breakout checklist')}${blk(bo.down, 'Bearish breakdown checklist')}</div><div class="note">${bo.notAssessable.map(esc).join(' ')}</div></section>`;
+}
+function rHeat(r) {
+  const win = r.strikes.filter(s => Math.abs(s.strike - r.atm) <= 16 * r.step);
+  const mx = f => Math.max(1e-9, ...win.flatMap(s => [s.CE[f], s.PE[f]]).filter(U.isNum).map(Math.abs));
+  const M = { oi: mx('oi'), chgOi: mx('chgOi'), volume: mx('volume') };
+  const sup = new Set(), res = new Set();
+  r.sr.support.slice(0, 2).forEach(z => { for (let k = z.low; k <= z.high; k += r.step) sup.add(k); }); r.sr.resistance.slice(0, 2).forEach(z => { for (let k = z.low; k <= z.high; k += r.step) res.add(k); });
+  const bc = r.decision.chosen, bestC = r.candidates.CE[0], bestP = r.candidates.PE[0];
+  const cell = (v, f, side, signed) => { if (!U.isNum(v)) return '<td>–</td>'; const a = Math.min(.55, Math.abs(v) / M[f] * .55), rgb = signed ? (v >= 0 ? 'var(--bull-rgb)' : 'var(--bear-rgb)') : (side === 'CE' ? 'var(--info-rgb)' : 'var(--gold-rgb)'); return `<td style="background:rgba(${rgb},${a.toFixed(2)})">${signed ? sg(v) : nIN(v)}</td>`; };
+  const plain = v => `<td>${U.isNum(v) ? nIN(v) : '–'}</td>`, d2 = v => `<td>${U.isNum(v) ? f2(v, 2) : '–'}</td>`, iv = v => `<td>${U.isNum(v) ? f2(v, 1) : '–'}</td>`;
+  return `<section class="sec">${secH('Strike heatmap', 'ATM ±16 strikes · shading is relative within each column')}
+  <div class="tw" style="max-height:620px;overflow:auto"><table class="heat"><thead><tr><th>CE OI</th><th>CE ΔOI</th><th>CE Vol</th><th>CE IV</th><th>CE LTP</th><th>Strike</th><th>PE LTP</th><th>PE IV</th><th>PE Vol</th><th>PE ΔOI</th><th>PE OI</th></tr></thead><tbody>
+  ${win.map(s => { const tags = []; if (sup.has(s.strike)) tags.push('<i class="S">S</i>'); if (res.has(s.strike)) tags.push('<i class="R">R</i>'); if (s.strike === r.maxPain.strike) tags.push('<i class="M">MP</i>'); if (bestC && bestC.K === s.strike) tags.push('<i class="BC">BEST CE</i>'); if (bestP && bestP.K === s.strike) tags.push('<i class="BP">BEST PE</i>'); if (s.strike === r.atm) tags.unshift('<i class="A">ATM</i>');
+    return `<tr class="${s.strike === r.atm ? 'atm' : ''} ${tags.length ? 'mk' : ''}">${cell(s.CE.oi, 'oi', 'CE')}${cell(s.CE.chgOi, 'chgOi', 'CE', 1)}${cell(s.CE.volume, 'volume', 'CE')}${iv(s.CE.iv)}${d2(s.CE.ltp)}<td class="k">${nIN(s.strike)}<span class="tags">${tags.join('')}</span></td>${d2(s.PE.ltp)}${iv(s.PE.iv)}${cell(s.PE.volume, 'volume', 'PE')}${cell(s.PE.chgOi, 'chgOi', 'PE', 1)}${cell(s.PE.oi, 'oi', 'PE')}</tr>`; }).join('')}
+  </tbody></table></div><div class="note">S = support zone, R = resistance zone, MP = max pain. “Best CE / PE” marks the top-ranked candidate on each side (a ranking, not necessarily a trade).</div></section>`;
+}
+function rBacktest(r) {
+  return `<section class="sec">${secH('Accuracy and backtesting')}<div class="card" style="display:grid;gap:8px"><div class="callout">No accuracy, win rate or profit claim is made. The Signal Quality Score orders setups by the strength of evidence in one snapshot; it is not a probability of profit.</div>
+  <div class="note">The engine is built for backtesting: <span class="mono">OCI.backtest.snapshot(result)</span> stores each signal, <span class="mono">evaluate(signal, laterResult)</span> measures the outcome in R-multiples against a later snapshot of the same expiry, and <span class="mono">stats(outcomes)</span> returns win rate, average winner and loser, profit factor, expectancy, maximum drawdown, average R:R, false-signal rate, score-versus-outcome buckets and performance by regime. Upload multiple historical chains to enable it. Until then treat every score as untested.</div></div></section>`;
+}
+
+/* ---------- main render ---------- */
+function render() {
+  const r = S.res; if (!r) return;
+  $('out').innerHTML = rSnapshot(r) + rDecision(r) + rAlt(r) + rStructure(r) + rRank(r) + rCharts(r) + rIV(r) + rRisk(r) + rBreakout(r) + rHeat(r) + rDQ(r) + rBacktest(r) +
+    `<div class="foot">Option Chain Intelligence ${OCI.version} · analysis time ${dstr(r.asOfDate)} · for education and decision support, not investment advice. Options can lose their full premium. Every level above is computed from the uploaded file only; stale or mis-timed files give stale results.</div>`;
+  $('breakdown').innerHTML = rBreakdown(r);
+  document.querySelectorAll('tr.clk').forEach(tr => tr.onclick = () => { S.sel = tr.dataset.k; document.querySelectorAll('tr.clk').forEach(x => x.classList.toggle('sel', x.dataset.k === S.sel)); $('breakdown').innerHTML = rBreakdown(r); });
+}
+
+/* ---------- report export ---------- */
+function buildReport(r) {
+  const d = r.decision, c = d.chosen, ref = d.reference, alt = d.alternative, T = x => `<td>${x}</td>`;
+  const plan = (cc) => { const p = cc.plan; return p && p.ok ? `<table><tr><th>Strike</th>${T(nIN(cc.K) + ' ' + cc.side + ' (' + cc.label + ')')}<th>Score</th>${T(cc.score + ' / 100')}</tr><tr><th>Entry</th>${T(inr(p.entry.preferredLow) + ' – ' + inr(p.entry.preferredHigh))}<th>Avoid above</th>${T(inr(p.avoidAbove))}</tr><tr><th>Stop loss</th>${T(inr(p.sl.premium) + ' (' + esc(p.sl.basis) + ')')}<th>R:R</th>${T('1 : ' + f2(p.rr.main, 2) + ' to ' + p.rr.mainIs)}</tr>${p.targets.map(t => `<tr><th>Target ${t.n}</th>${T(inr(t.premium) + ' · underlying ' + nIN(Math.round(t.underlying)) + ' · ' + esc(t.basis))}<th>R:R</th>${T('1 : ' + f2(t.rr, 2))}</tr>`).join('')}<tr><th>Invalidation</th><td colspan="3">${esc(p.invalidation)}</td></tr></table>` : `<p>${esc(p ? p.reason : '')}</p>`; };
+  const zrow = z => `<tr><td>${z.side}</td><td>${z.low === z.high ? nIN(z.peak) : nIN(z.low) + '–' + nIN(z.high)}</td><td>${z.strength}/100 ${z.grade}</td><td>${compact(z.oi)}</td><td>${sg(z.chgOi)}</td><td>${z.flow ? esc(z.flow.label) : '–'}</td></tr>`;
+  const css = 'body{font:14px/1.5 system-ui,sans-serif;color:#0d1a33;max-width:920px;margin:24px auto;padding:0 16px}h1{font-size:20px;letter-spacing:.08em;text-transform:uppercase;margin:0}h2{font-size:12px;letter-spacing:.14em;text-transform:uppercase;border-bottom:1px solid #c9cedb;padding-bottom:4px;margin:24px 0 8px;color:#44506b}table{border-collapse:collapse;width:100%;margin:6px 0;font-size:13px}th,td{border:1px solid #dcdfe7;padding:5px 8px;text-align:left;vertical-align:top}th{background:#eceef3;width:16%}.hd{background:#0a1630;color:#fff;padding:14px 18px;border-radius:4px}.big{font-size:28px;font-weight:700;margin:6px 0}.n{color:#738098;font-size:12px}';
+  return `<!doctype html><html><head><meta charset="utf-8"><title>Trade report ${esc(r.underlying)} ${dday(r.expiry)}</title><style>${css}</style></head><body>
+  <div class="hd"><h1>Option Chain Intelligence · Trade Report</h1><div class="n" style="color:#9aa8c4">${esc(r.underlying)} · expiry ${dday(r.expiry)} · analysis time ${dstr(r.asOfDate)} · file ${esc(r.filename || '')}</div></div>
+  <h2>Decision</h2><div class="big">${esc(d.action)} · ${d.score != null ? d.score + ' / 100' : ''}</div><p><b>${esc(d.banner)}</b>. Signal Quality Score is not a probability of profit.</p>
+  ${c ? plan(c) + '<h3>Why this trade</h3><ol>' + d.reasons.map(x => `<li>${esc(x)}</li>`).join('') + '</ol>' : '<ul>' + d.noTradeReasons.map(x => `<li>${esc(x)}</li>`).join('') + '</ul><p><b>' + esc(d.staying || '') + '</b></p><ul>' + d.triggers.map(x => `<li>${esc(x)}</li>`).join('') + '</ul>' + (ref ? '<h3>Highest-ranked setup (reference only)</h3>' + plan(ref) : '')}
+  ${alt ? '<h2>Alternative — Lower Conviction</h2>' + plan(alt) : ''}
+  <h2>Market snapshot</h2><table><tr><th>Spot</th>${T(nIN(r.spot) + ' (' + esc(r.spotSource) + ')')}<th>ATM</th>${T(nIN(r.atm))}</tr><tr><th>Max pain</th>${T(nIN(r.maxPain.strike))}<th>PCR (OI / near-ATM / volume)</th>${T(f2(r.pcr.oiAll) + ' / ' + f2(r.pcr.oiNear) + ' / ' + f2(r.pcr.volAll))}</tr><tr><th>Expected move</th>${T('±' + nIN(r.expectedMove) + ' (' + esc(r.emSource) + ')')}<th>DTE</th>${T(r.dte + ' (' + f2(r.tctx.hours, 1) + 'h)')}</tr><tr><th>Regime</th>${T(esc(r.regime.regime))}<th>Bias</th>${T(esc(r.regime.bias) + ' (' + f2(r.direction.D, 2) + ')')}</tr></table>
+  <h2>Support and resistance</h2><table><tr><th>Side</th><th>Zone</th><th>Strength</th><th>OI</th><th>ΔOI</th><th>Flow</th></tr>${r.sr.support.slice(0, 2).map(zrow).join('')}${r.sr.resistance.slice(0, 2).map(zrow).join('')}</table>
+  <h2>OI analysis</h2><p>${esc(r.volume.label)}. OI flow score ${f2(r.flow.x, 2)}, volume-weighted ${f2(r.flow.volFlow, 2)}. ${r.pcr.interpretation.map(esc).join('. ')}.</p><table><tr><th>Strike</th><th>Type</th><th>ΔOI</th><th>Premium Δ</th><th>Volume</th></tr>${r.flow.rows.slice(0, 8).map(x => `<tr><td>${nIN(x.K)} ${x.side}</td><td>${esc(x.flow.label)}</td><td>${sg(x.chgOi)}</td><td>${x.chg}</td><td>${nIN(x.volume)}</td></tr>`).join('')}</table>
+  <h2>IV analysis</h2><p>ATM IV ${r.iv.atmIv != null ? f2(r.iv.atmIv * 100, 1) + '%' : 'n/a'}; skew ${r.iv.skew != null ? f2(r.iv.skew, 1) + ' vol pts' : 'n/a'}; relatively expensive: ${r.iv.rich.map(x => nIN(x.K) + x.side).slice(0, 8).join(', ') || 'none'}.</p>
+  <h2>Greeks (candidates)</h2><table><tr><th>Strike</th><th>Delta</th><th>Gamma</th><th>Theta/day</th><th>Vega</th><th>Source</th></tr>${[...r.candidates.CE.slice(0, 3), ...r.candidates.PE.slice(0, 3)].map(x => `<tr><td>${nIN(x.K)} ${x.side}</td><td>${f2(x.leg.delta, 3)}</td><td>${x.leg.gamma != null ? x.leg.gamma.toFixed(5) : '–'}</td><td>${f2(x.leg.theta, 2)}</td><td>${f2(x.leg.vega, 2)}</td><td>${x.leg.greekSource || 'n/a'}</td></tr>`).join('')}</table>
+  <h2>Candidate ranking</h2><table><tr><th>Strike</th><th>Score</th><th>Signal</th><th>Price</th><th>Spread</th><th>Status</th></tr>${[...r.candidates.CE, ...r.candidates.PE].sort((a, b) => b.score - a.score).map(x => `<tr><td>${nIN(x.K)} ${x.side}</td><td>${x.score}</td><td>${x.hardFails.length ? 'NO TRADE' : x.signal}</td><td>${f2(x.leg.px)}</td><td>${x.leg.spreadPct != null ? f2(x.leg.spreadPct, 2) + '%' : '–'}</td><td>${x.hardFails.length ? esc(x.hardFails[0].msg) : x.softFails.length ? esc(x.softFails[0].msg) : 'passes all gates'}</td></tr>`).join('')}</table>
+  <h2>Data quality</h2><p>${r.dataQuality.score}% (${r.dataQuality.label}). ${r.dataQuality.issues.map(i => esc(i.msg)).join('; ')}</p><p class="n">Not calculable: ${r.dataQuality.uncalculable.map(esc).join('; ')}</p>
+  <h2>Risk warnings</h2><ul><li>The Signal Quality Score is not a probability; it is untested until backtested on historical chains.</li><li>${r.dte != null && r.dte <= 1 ? 'Expiry is within a day: gamma and theta are extreme and premiums can go to zero quickly.' : 'Time decay and IV changes can erase a premium even when direction is right.'}</li><li>${r.spotActual ? 'Spot was read from the file.' : 'Spot is an estimate derived from put-call parity; Greeks are labelled Estimated.'}</li><li>Decision support only, not investment advice.</li></ul></body></html>`;
+}
+async function downloadReport() {
+  if (!S.res) return;
+  const html = buildReport(S.res), name = `trade-report-${S.res.underlying}-${dday(S.res.expiry)}.html`;
+  try { const dl = await claude.use('downloads'); if (!dl) throw new Error('unavailable'); await dl.save({ filename: name, data: html }); toast('Report ready'); }
+  catch (e) { if (e && e.code === 'declined') return; const w = document.createElement('textarea'); w.value = html; try { await navigator.clipboard.writeText(html); toast('Saving is unavailable here; report HTML copied to clipboard'); } catch (x) { toast('Saving is unavailable in this view'); } }
+}
+
+/* ---------- wiring ---------- */
+$('btnUpload').onclick = () => $('file').click();
+$('file').onchange = e => { const f = e.target.files[0]; if (f) loadFile(f); e.target.value = ''; };
+$('btnAnalyze').onclick = runAnalysis;
+$('btnSample').onclick = () => { loadSample(); runAnalysis(); };
+$('btnSettings').onclick = () => { const s = $('settings'); if (s.hidden) buildSettings(); s.hidden = !s.hidden; };
+$('btnReport').onclick = downloadReport;
+const drop = $('drop');
+['dragenter', 'dragover'].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.add('drag'); }));
+['dragleave', 'drop'].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.remove('drag'); }));
+drop.addEventListener('drop', e => { const f = e.dataTransfer.files[0]; if (f) loadFile(f).then(() => { if (!$('btnAnalyze').disabled) runAnalysis(); }); });
+loadSample(); runAnalysis();
+})();
+</script>
+
+</body></html>
